@@ -2230,7 +2230,7 @@ bool Unit::CheckAllControlledUnits(Func const& func, uint32 controlledMask) cons
     return false;
 }
 
-template<typename Elem, typename Node>
+/*template<typename Elem, typename Node>
 inline void Unit::SendMonsterMoveByPath(Path<Elem,Node> const& path, uint32 start, uint32 end, SplineFlags flags)
 {
     uint32 traveltime = uint32(path.GetTotalLength(start, end) * 32);
@@ -2257,6 +2257,6 @@ inline void Unit::SendMonsterMoveByPath(Path<Elem,Node> const& path, uint32 star
     }
 
     SendMessageToSet(&data, true);
-}
+}*/
 
 #endif
