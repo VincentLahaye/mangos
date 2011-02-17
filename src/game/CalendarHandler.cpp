@@ -22,7 +22,8 @@
 #include "WorldPacket.h"
 #include "WorldSession.h"
 #include "Opcodes.h"
-#include "InstanceSaveMgr.h"
+#include "World.h"
+#include "MapPersistentStateMgr.h"
 
 void WorldSession::HandleCalendarGetCalendar(WorldPacket &/*recv_data*/)
 {
@@ -37,12 +38,12 @@ void WorldSession::HandleCalendarGetCalendar(WorldPacket &/*recv_data*/)
     // TODO: calendar event output
     data << (uint32) 0;                                     //event count
 
-    data << (uint32) 0;                                     //wtf??
-    data << (uint32) secsToTimeBitFields(cur_time);         // current time
+    data << uint32(cur_time);                               // current time, unix timestamp
+    data << uint32(secsToTimeBitFields(cur_time));          // current time, time bit fields
 
     uint32 counter = 0;
     size_t p_counter = data.wpos();
-    data << uint32(counter);                                // instance save count
+    data << uint32(counter);                                // instance state count
 
     for(int i = 0; i < MAX_DIFFICULTY; ++i)
     {
@@ -50,19 +51,45 @@ void WorldSession::HandleCalendarGetCalendar(WorldPacket &/*recv_data*/)
         {
             if(itr->second.perm)
             {
-                InstanceSave *save = itr->second.save;
-                data << uint32(save->GetMapId());
-                data << uint32(save->GetDifficulty());
-                data << uint32(save->GetResetTime() - cur_time);
-                data << ObjectGuid(save->GetInstanceGuid());
+                DungeonPersistentState *state = itr->second.state;
+                data << uint32(state->GetMapId());
+                data << uint32(state->GetDifficulty());
+                data << uint32(state->GetResetTime() - cur_time);
+                data << ObjectGuid(state->GetInstanceGuid());
                 ++counter;
             }
         }
     }
     data.put<uint32>(p_counter,counter);
 
-    data << (uint32) 1135753200;                            //wtf?? (28.12.2005 12:00)
-    data << (uint32) 0;                                     //  unk counter 4
+    data << uint32(INSTANCE_RESET_SCHEDULE_START_TIME + sWorld.getConfig(CONFIG_UINT32_INSTANCE_RESET_TIME_HOUR) * HOUR);
+    counter = 0;
+    p_counter = data.wpos();
+    data << uint32(counter);                                // Instance reset intervals
+    for(MapDifficultyMap::const_iterator itr = sMapDifficultyMap.begin(); itr != sMapDifficultyMap.end(); ++itr)
+    {
+        uint32 map_diff_pair = itr->first;
+        uint32 mapid = PAIR32_LOPART(map_diff_pair);
+        int difficulty = PAIR32_HIPART(map_diff_pair);
+        MapDifficulty const* mapDiff = &itr->second;
+        if(!mapDiff->resetTime || difficulty != (int)REGULAR_DIFFICULTY)
+            continue;
+
+        const MapEntry* map = sMapStore.LookupEntry(mapid);
+        if(!map->IsRaid())
+            continue;
+
+        uint32 period =  uint32(mapDiff->resetTime / DAY * sWorld.getConfig(CONFIG_FLOAT_RATE_INSTANCE_RESET_TIME)) * DAY;
+        if (period < DAY)
+            period = DAY;
+
+        data << uint32(mapid);
+        data << uint32(period);
+        data << uint32(map->instanceResetOffset);
+        ++counter;
+    }
+    data.put<uint32>(p_counter,counter);
+
     data << (uint32) 0;                                     // unk counter 5
     //DEBUG_LOG("Sending calendar");
     //data.hexlike();

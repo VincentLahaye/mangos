@@ -31,7 +31,7 @@
 #define BG_EVENT_DOOR 254
 // only arena event
 // cause this buff apears 90sec after start in every bg i implement it here
-#define ARENA_BUFF_EVENT 252
+#define ARENA_BUFF_EVENT 253
 
 
 class Creature;
@@ -96,7 +96,9 @@ enum BattleGroundSpells
     SPELL_HORDE_GREEN_FLAG          = 35775,
     SPELL_PREPARATION               = 44521,                // Preparation
     SPELL_RECENTLY_DROPPED_FLAG     = 42792,                // Recently Dropped Flag
-    SPELL_AURA_PLAYER_INACTIVE      = 43681                 // Inactive
+    SPELL_AURA_PLAYER_INACTIVE      = 43681,                // Inactive
+    SPELL_ARENA_DAMPENING           = 74410,                // 10% healing reduction
+    SPELL_BATTLEGROUND_DAMPENING    = 74411,                // 10% healing reduction
 };
 
 enum BattleGroundTimeIntervals
@@ -127,6 +129,16 @@ enum BattleGroundBuffObjects
     BG_OBJECTID_SPEEDBUFF_ENTRY     = 179871,
     BG_OBJECTID_REGENBUFF_ENTRY     = 179904,
     BG_OBJECTID_BERSERKERBUFF_ENTRY = 179905
+};
+
+enum BattleGroundRandomRewards
+{
+    BG_REWARD_WINNER_HONOR_FIRST    = 30,
+    BG_REWARD_WINNER_ARENA_FIRST    = 25,
+    BG_REWARD_WINNER_HONOR_LAST     = 15,
+    BG_REWARD_WINNER_ARENA_LAST     = 0,
+    BG_REWARD_LOOSER_HONOR_FIRST    = 5,
+    BG_REWARD_LOOSER_HONOR_LAST     = 5
 };
 
 const uint32 Buff_Entries[3] = { BG_OBJECTID_SPEEDBUFF_ENTRY, BG_OBJECTID_REGENBUFF_ENTRY, BG_OBJECTID_BERSERKERBUFF_ENTRY };
@@ -165,11 +177,12 @@ enum BattleGroundQueueTypeId
     BATTLEGROUND_QUEUE_EY       = 4,
     BATTLEGROUND_QUEUE_SA       = 5,
     BATTLEGROUND_QUEUE_IC       = 6,
-    BATTLEGROUND_QUEUE_2v2      = 7,
-    BATTLEGROUND_QUEUE_3v3      = 8,
-    BATTLEGROUND_QUEUE_5v5      = 9
+    BATTLEGROUND_QUEUE_RB       = 7,
+    BATTLEGROUND_QUEUE_2v2      = 8,
+    BATTLEGROUND_QUEUE_3v3      = 9,
+    BATTLEGROUND_QUEUE_5v5      = 10
 };
-#define MAX_BATTLEGROUND_QUEUE_TYPES 10
+#define MAX_BATTLEGROUND_QUEUE_TYPES 11
 
 enum ScoreType
 {
@@ -191,7 +204,11 @@ enum ScoreType
     SCORE_GRAVEYARDS_DEFENDED   = 12,
     SCORE_TOWERS_ASSAULTED      = 13,
     SCORE_TOWERS_DEFENDED       = 14,
-    SCORE_SECONDARY_OBJECTIVES  = 15
+    SCORE_SECONDARY_OBJECTIVES  = 15,
+    /** World of Warcraft Armory **/
+    SCORE_DAMAGE_TAKEN          = 16,
+    SCORE_HEALING_TAKEN         = 17
+    /** World of Warcraft Armory **/
 };
 
 enum ArenaType
@@ -275,6 +292,10 @@ class BattleGroundScore
         uint32 BonusHonor;
         uint32 DamageDone;
         uint32 HealingDone;
+        /** World of Warcraft Armory **/
+        uint32 DamageTaken;
+        uint32 HealingTaken;
+        /** World of Warcraft Armory **/
 };
 
 /*
@@ -309,7 +330,7 @@ class BattleGround
         /* Battleground */
         // Get methods:
         char const* GetName() const         { return m_Name; }
-        BattleGroundTypeId GetTypeID() const { return m_TypeID; }
+        BattleGroundTypeId GetTypeID(bool GetRandom = false) const { return GetRandom ? m_RandomTypeID : m_TypeID; }
         BattleGroundBracketId GetBracketId() const { return m_BracketId; }
         // the instanceId check is also used to determine a bg-template
         // that's why the m_map hack is here..
@@ -332,10 +353,12 @@ class BattleGround
         uint8 GetWinner() const             { return m_Winner; }
         uint32 GetBattlemasterEntry() const;
         uint32 GetBonusHonorFromKill(uint32 kills) const;
+        bool IsRandom() { return m_IsRandom; }
 
         // Set methods:
         void SetName(char const* Name)      { m_Name = Name; }
         void SetTypeID(BattleGroundTypeId TypeID) { m_TypeID = TypeID; }
+        void SetRandomTypeID(BattleGroundTypeId TypeID) { m_RandomTypeID = TypeID; }
         //here we can count minlevel and maxlevel for players
         void SetBracket(PvPDifficultyEntry const* bracketEntry);
         void SetStatus(BattleGroundStatus Status) { m_Status = Status; }
@@ -361,6 +384,8 @@ class BattleGround
 
         void DecreaseInvitedCount(Team team)      { (team == ALLIANCE) ? --m_InvitedAlliance : --m_InvitedHorde; }
         void IncreaseInvitedCount(Team team)      { (team == ALLIANCE) ? ++m_InvitedAlliance : ++m_InvitedHorde; }
+        void SetRandom(bool isRandom) { m_IsRandom = isRandom; }
+
         uint32 GetInvitedCount(Team team) const
         {
             if (team == ALLIANCE)
@@ -571,10 +596,12 @@ class BattleGround
         uint32 m_StartMessageIds[BG_STARTING_EVENT_COUNT];
 
         bool   m_BuffChange;
+        bool   m_IsRandom;
 
     private:
         /* Battleground */
         BattleGroundTypeId m_TypeID;
+        BattleGroundTypeId m_RandomTypeID;
         BattleGroundStatus m_Status;
         uint32 m_ClientInstanceID;                          //the instance-id which is sent to the client and without any other internal use
         uint32 m_StartTime;

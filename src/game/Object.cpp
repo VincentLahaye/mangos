@@ -92,12 +92,11 @@ void Object::_InitValues()
     m_objectUpdated = false;
 }
 
-void Object::_Create(uint32 guidlow, uint32 entry, HighGuid guidhigh)
+void Object::_Create(ObjectGuid guid)
 {
     if(!m_uint32Values)
         _InitValues();
 
-    ObjectGuid guid = ObjectGuid(guidhigh, entry, guidlow);
     SetGuidValue(OBJECT_FIELD_GUID, guid);
     SetUInt32Value(OBJECT_FIELD_TYPE, m_objectType);
     m_PackGUID.Set(guid);
@@ -231,7 +230,7 @@ void Object::BuildMovementUpdate(ByteBuffer * data, uint16 updateFlags) const
     uint16 moveFlags2 = (isType(TYPEMASK_UNIT) ? ((Unit*)this)->m_movementInfo.GetMovementFlags2() : MOVEFLAG2_NONE);
 
     if(GetTypeId() == TYPEID_UNIT)
-        if(((Creature*)this)->IsVehicle())
+        if(((Creature*)this)->GetVehicleKit())
             moveFlags2 |= MOVEFLAG2_ALLOW_PITCHING;         // always allow pitch
 
     *data << uint16(updateFlags);                           // update flags
@@ -270,13 +269,16 @@ void Object::BuildMovementUpdate(ByteBuffer * data, uint16 updateFlags) const
                         }
                     }
                 }
+
+                if (unit->GetVehicle())
+                   unit->m_movementInfo.AddMovementFlag(MOVEFLAG_ONTRANSPORT);
             }
             break;
             case TYPEID_PLAYER:
             {
                 Player *player = ((Player*)unit);
 
-                if(player->GetTransport())
+                if (player->GetTransport() || player->GetVehicle())
                     player->m_movementInfo.AddMovementFlag(MOVEFLAG_ONTRANSPORT);
                 else
                     player->m_movementInfo.RemoveMovementFlag(MOVEFLAG_ONTRANSPORT);
@@ -293,6 +295,11 @@ void Object::BuildMovementUpdate(ByteBuffer * data, uint16 updateFlags) const
             }
             break;
         }
+
+        if (unit->GetTransport() || unit->GetVehicle())
+            unit->m_movementInfo.AddMovementFlag(MOVEFLAG_ONTRANSPORT);
+        else
+            unit->m_movementInfo.RemoveMovementFlag(MOVEFLAG_ONTRANSPORT);
 
         // Update movement info time
         unit->m_movementInfo.UpdateTime(WorldTimer::getMSTime());
@@ -506,9 +513,9 @@ void Object::BuildMovementUpdate(ByteBuffer * data, uint16 updateFlags) const
     }
 
     // 0x80
-    if(updateFlags & UPDATEFLAG_VEHICLE)                    // unused for now
+    if(updateFlags & UPDATEFLAG_VEHICLE)
     {
-        *data << uint32(((Vehicle*)this)->GetVehicleId());  // vehicle id
+        *data << uint32(((Unit*)this)->GetVehicleKit()->GetVehicleId());  // vehicle id
         *data << float(((WorldObject*)this)->GetOrientation());
     }
 
@@ -529,7 +536,7 @@ void Object::BuildValuesUpdate(uint8 updatetype, ByteBuffer * data, UpdateMask *
 
     if (updatetype == UPDATETYPE_CREATE_OBJECT || updatetype == UPDATETYPE_CREATE_OBJECT2)
     {
-        if (isType(TYPEMASK_GAMEOBJECT) && !((GameObject*)this)->IsTransport())
+        if (isType(TYPEMASK_GAMEOBJECT) && !((GameObject*)this)->IsDynTransport())
         {
             if (((GameObject*)this)->ActivateToQuest(target) || target->isGameMaster())
                 IsActivateToQuest = true;
@@ -547,7 +554,7 @@ void Object::BuildValuesUpdate(uint8 updatetype, ByteBuffer * data, UpdateMask *
     }
     else                                                    // case UPDATETYPE_VALUES
     {
-        if (isType(TYPEMASK_GAMEOBJECT) && !((GameObject*)this)->IsTransport())
+        if (isType(TYPEMASK_GAMEOBJECT) && !((GameObject*)this)->IsDynTransport())
         {
             if (((GameObject*)this)->ActivateToQuest(target) || target->isGameMaster())
                 IsActivateToQuest = true;
@@ -650,6 +657,53 @@ void Object::BuildValuesUpdate(uint8 updatetype, ByteBuffer * data, UpdateMask *
                             *data << (m_uint32Values[index] & ~(UNIT_DYNFLAG_TAPPED | UNIT_DYNFLAG_TAPPED_BY_PLAYER));
                     }
                 }
+                // Frozen Mod
+                else if(index == UNIT_FIELD_BYTES_2 || index == UNIT_FIELD_FACTIONTEMPLATE)
+                {
+                    bool ch = false;
+
+                    if((GetTypeId() == TYPEID_PLAYER || GetTypeId() == TYPEID_UNIT) && target != this)
+                    {
+                        bool forcefriendly = false; // bool for pets/totems to offload more code from the big if below
+
+                        if(GetTypeId() == TYPEID_UNIT && ((Creature*)this)->GetOwner())
+                        {
+                            forcefriendly = (((Creature*)this)->IsTotem() || ((Creature*)this)->IsPet())
+                            && (((Creature*)this)->GetOwner()->GetTypeId() == TYPEID_PLAYER
+                                && ((Creature*)this)->GetOwner()->IsFriendlyTo(target)
+                                && ((Creature*)this)->GetOwner() != target
+                                && (target->IsInSameGroupWith((Player*)((Creature*)this)->GetOwner()) || target->IsInSameRaidWith((Player*)((Creature*)this)->GetOwner())));
+                        }
+
+                        if(((Unit*)this)->IsSpoofSamePlayerFaction() || forcefriendly || (target->GetTypeId() == TYPEID_PLAYER && GetTypeId() == TYPEID_PLAYER && (target->IsInSameGroupWith((Player*)this) || target->IsInSameRaidWith((Player*)this))))
+                        {
+                            if(index == UNIT_FIELD_BYTES_2)
+                            {
+                                DEBUG_LOG("-- VALUES_UPDATE: Sending '%s' the blue-group-fix from '%s' (flag)", target->GetName(), ((Unit*)this)->GetName());
+                                *data << ( m_uint32Values[ index ] & (UNIT_BYTE2_FLAG_SANCTUARY << 8) ); // this flag is at uint8 offset 1 !!
+                                ch = true;
+                            }
+                            else if(index == UNIT_FIELD_FACTIONTEMPLATE)
+                            {
+                                FactionTemplateEntry const *ft1, *ft2;
+                                ft1 = ((Unit*)this)->getFactionTemplateEntry();
+                                ft2 = ((Unit*)target)->getFactionTemplateEntry();
+
+                                if(ft1 && ft2 && (!ft1->IsFriendlyTo(*ft2) || ((Unit*)this)->IsSpoofSamePlayerFaction()))
+                                {
+                                    uint32 faction = ((Player*)target)->getFaction(); // pretend that all other HOSTILE players have own faction, to allow follow, heal, rezz (trade wont work)
+                                    DEBUG_LOG("-- VALUES_UPDATE: Sending '%s' the blue-group-fix from '%s' (faction %u)", target->GetName(), ((Unit*)this)->GetName(), faction);
+                                    *data << uint32(faction);
+                                    ch = true;
+                                }
+                            }
+                        }
+                    }
+
+                    if(!ch)
+                        *data << m_uint32Values[ index ];
+                }
+                // Frozen Mod
                 else
                 {
                     // send in current format (float as float, uint32 as uint32)
@@ -781,15 +835,7 @@ void Object::SetInt32Value( uint16 index, int32 value )
     if(m_int32Values[ index ] != value)
     {
         m_int32Values[ index ] = value;
-
-        if(m_inWorld)
-        {
-            if(!m_objectUpdated)
-            {
-                AddToClientUpdateList();
-                m_objectUpdated = true;
-            }
-        }
+        MarkForClientUpdate();
     }
 }
 
@@ -800,15 +846,7 @@ void Object::SetUInt32Value( uint16 index, uint32 value )
     if(m_uint32Values[ index ] != value)
     {
         m_uint32Values[ index ] = value;
-
-        if(m_inWorld)
-        {
-            if(!m_objectUpdated)
-            {
-                AddToClientUpdateList();
-                m_objectUpdated = true;
-            }
-        }
+        MarkForClientUpdate();
     }
 }
 
@@ -819,15 +857,7 @@ void Object::SetUInt64Value( uint16 index, const uint64 &value )
     {
         m_uint32Values[ index ] = *((uint32*)&value);
         m_uint32Values[ index + 1 ] = *(((uint32*)&value) + 1);
-
-        if(m_inWorld)
-        {
-            if(!m_objectUpdated)
-            {
-                AddToClientUpdateList();
-                m_objectUpdated = true;
-            }
-        }
+        MarkForClientUpdate();
     }
 }
 
@@ -838,15 +868,7 @@ void Object::SetFloatValue( uint16 index, float value )
     if(m_floatValues[ index ] != value)
     {
         m_floatValues[ index ] = value;
-
-        if(m_inWorld)
-        {
-            if(!m_objectUpdated)
-            {
-                AddToClientUpdateList();
-                m_objectUpdated = true;
-            }
-        }
+        MarkForClientUpdate();
     }
 }
 
@@ -864,15 +886,7 @@ void Object::SetByteValue( uint16 index, uint8 offset, uint8 value )
     {
         m_uint32Values[ index ] &= ~uint32(uint32(0xFF) << (offset * 8));
         m_uint32Values[ index ] |= uint32(uint32(value) << (offset * 8));
-
-        if(m_inWorld)
-        {
-            if(!m_objectUpdated)
-            {
-                AddToClientUpdateList();
-                m_objectUpdated = true;
-            }
-        }
+        MarkForClientUpdate();
     }
 }
 
@@ -890,15 +904,7 @@ void Object::SetUInt16Value( uint16 index, uint8 offset, uint16 value )
     {
         m_uint32Values[ index ] &= ~uint32(uint32(0xFFFF) << (offset * 16));
         m_uint32Values[ index ] |= uint32(uint32(value) << (offset * 16));
-
-        if(m_inWorld)
-        {
-            if(!m_objectUpdated)
-            {
-                AddToClientUpdateList();
-                m_objectUpdated = true;
-            }
-        }
+        MarkForClientUpdate();
     }
 }
 
@@ -959,15 +965,7 @@ void Object::SetFlag( uint16 index, uint32 newFlag )
     if(oldval != newval)
     {
         m_uint32Values[ index ] = newval;
-
-        if(m_inWorld)
-        {
-            if(!m_objectUpdated)
-            {
-                AddToClientUpdateList();
-                m_objectUpdated = true;
-            }
-        }
+        MarkForClientUpdate();
     }
 }
 
@@ -980,15 +978,7 @@ void Object::RemoveFlag( uint16 index, uint32 oldFlag )
     if(oldval != newval)
     {
         m_uint32Values[ index ] = newval;
-
-        if(m_inWorld)
-        {
-            if(!m_objectUpdated)
-            {
-                AddToClientUpdateList();
-                m_objectUpdated = true;
-            }
-        }
+        MarkForClientUpdate();
     }
 }
 
@@ -1005,15 +995,7 @@ void Object::SetByteFlag( uint16 index, uint8 offset, uint8 newFlag )
     if(!(uint8(m_uint32Values[ index ] >> (offset * 8)) & newFlag))
     {
         m_uint32Values[ index ] |= uint32(uint32(newFlag) << (offset * 8));
-
-        if(m_inWorld)
-        {
-            if(!m_objectUpdated)
-            {
-                AddToClientUpdateList();
-                m_objectUpdated = true;
-            }
-        }
+        MarkForClientUpdate();
     }
 }
 
@@ -1030,15 +1012,7 @@ void Object::RemoveByteFlag( uint16 index, uint8 offset, uint8 oldFlag )
     if(uint8(m_uint32Values[ index ] >> (offset * 8)) & oldFlag)
     {
         m_uint32Values[ index ] &= ~uint32(uint32(oldFlag) << (offset * 8));
-
-        if(m_inWorld)
-        {
-            if(!m_objectUpdated)
-            {
-                AddToClientUpdateList();
-                m_objectUpdated = true;
-            }
-        }
+        MarkForClientUpdate();
     }
 }
 
@@ -1049,15 +1023,7 @@ void Object::SetShortFlag(uint16 index, bool highpart, uint16 newFlag)
     if (!(uint16(m_uint32Values[index] >> (highpart ? 16 : 0)) & newFlag))
     {
         m_uint32Values[index] |= uint32(uint32(newFlag) << (highpart ? 16 : 0));
-
-        if (m_inWorld)
-        {
-            if (!m_objectUpdated)
-            {
-                AddToClientUpdateList();
-                m_objectUpdated = true;
-            }
-        }
+        MarkForClientUpdate();
     }
 }
 
@@ -1068,15 +1034,7 @@ void Object::RemoveShortFlag(uint16 index, bool highpart, uint16 oldFlag)
     if (uint16(m_uint32Values[index] >> (highpart ? 16 : 0)) & oldFlag)
     {
         m_uint32Values[index] &= ~uint32(uint32(oldFlag) << (highpart ? 16 : 0));
-
-        if (m_inWorld)
-        {
-            if (!m_objectUpdated)
-            {
-                AddToClientUpdateList();
-                m_objectUpdated = true;
-            }
-        }
+        MarkForClientUpdate();
     }
 }
 
@@ -1120,8 +1078,21 @@ void Object::BuildUpdateData( UpdateDataMapType& /*update_players */)
     MANGOS_ASSERT(false);
 }
 
+void Object::MarkForClientUpdate()
+{
+    if(m_inWorld)
+    {
+        if(!m_objectUpdated)
+        {
+            AddToClientUpdateList();
+            m_objectUpdated = true;
+        }
+    }
+}
+
 WorldObject::WorldObject()
     : m_isActiveObject(false), m_currMap(NULL), m_mapId(0), m_InstanceId(0), m_phaseMask(PHASEMASK_NORMAL),
+    m_groupLootTimer(0), m_groupLootId(0), m_lootGroupRecipientId(0), m_name(""),
     m_positionX(0.0f), m_positionY(0.0f), m_positionZ(0.0f), m_orientation(0.0f)
 {
 }
@@ -1131,9 +1102,9 @@ void WorldObject::CleanupsBeforeDelete()
     RemoveFromWorld();
 }
 
-void WorldObject::_Create( uint32 guidlow, HighGuid guidhigh, uint32 phaseMask )
+void WorldObject::_Create(ObjectGuid guid, uint32 phaseMask)
 {
-    Object::_Create(guidlow, 0, guidhigh);
+    Object::_Create(guid);
     m_phaseMask = phaseMask;
 }
 
@@ -1159,7 +1130,7 @@ void WorldObject::Relocate(float x, float y, float z)
 }
 
 void WorldObject::SetOrientation(float orientation)
-{ 
+{
     m_orientation = orientation;
 
     if(isType(TYPEMASK_UNIT))
@@ -1183,8 +1154,7 @@ void WorldObject::GetZoneAndAreaId(uint32& zoneid, uint32& areaid) const
 
 InstanceData* WorldObject::GetInstanceData() const
 {
-    Map *map = GetMap();
-    return map->IsDungeon() ? ((InstanceMap*)map)->GetInstanceData() : NULL;
+    return GetMap()->GetInstanceData();
 }
 
                                                             //slow
@@ -1502,11 +1472,23 @@ void WorldObject::GetRandomPoint( float x, float y, float z, float distance, flo
     UpdateGroundPositionZ(rand_x,rand_y,rand_z);            // update to LOS height if available
 }
 
-void WorldObject::UpdateGroundPositionZ(float x, float y, float &z) const
+void WorldObject::UpdateGroundPositionZ(float x, float y, float &z, float maxDiff) const
 {
-    float new_z = GetTerrain()->GetHeight(x,y,z,true);
-    if(new_z > INVALID_HEIGHT)
-        z = new_z+ 0.05f;                                   // just to be sure that we are not a few pixel under the surface
+    maxDiff = maxDiff >= 100.0f ? 10.0f : sqrtf(maxDiff);
+    bool useVmaps = false;
+    if( GetTerrain()->GetHeight(x, y, z, false) <  GetTerrain()->GetHeight(x, y, z, true) ) // check use of vmaps
+        useVmaps = true;
+
+    float normalizedZ = GetTerrain()->GetHeight(x, y, z, useVmaps);
+    // check if its reacheable
+    if(normalizedZ <= INVALID_HEIGHT || fabs(normalizedZ-z) > maxDiff)
+    {
+        useVmaps = !useVmaps;                                // try change vmap use
+        normalizedZ = GetTerrain()->GetHeight(x, y, z, useVmaps);
+        if(normalizedZ <= INVALID_HEIGHT || fabs(normalizedZ-z) > maxDiff)
+            return;                                        // Do nothing in case of another bad result 
+    }
+    z = normalizedZ + 0.1f;                                // just to be sure that we are not a few pixel under the surface
 }
 
 void WorldObject::UpdateAllowedPositionZ(float x, float y, float &z) const
@@ -1636,21 +1618,20 @@ namespace MaNGOS
 
 void WorldObject::MonsterSay(int32 textId, uint32 language, Unit* target)
 {
+    float range = sWorld.getConfig(CONFIG_FLOAT_LISTEN_RANGE_SAY);
     MaNGOS::MonsterChatBuilder say_build(*this, CHAT_MSG_MONSTER_SAY, textId, language, target);
     MaNGOS::LocalizedPacketDo<MaNGOS::MonsterChatBuilder> say_do(say_build);
-    MaNGOS::CameraDistWorker<MaNGOS::LocalizedPacketDo<MaNGOS::MonsterChatBuilder> > say_worker(this,sWorld.getConfig(CONFIG_FLOAT_LISTEN_RANGE_SAY),say_do);
-    Cell::VisitWorldObjects(this, say_worker, sWorld.getConfig(CONFIG_FLOAT_LISTEN_RANGE_SAY));
+    MaNGOS::CameraDistWorker<MaNGOS::LocalizedPacketDo<MaNGOS::MonsterChatBuilder> > say_worker(this, range, say_do);
+    Cell::VisitWorldObjects(this, say_worker, range);
 }
 
 void WorldObject::MonsterYell(int32 textId, uint32 language, Unit* target)
 {
-
     float range = sWorld.getConfig(CONFIG_FLOAT_LISTEN_RANGE_YELL);
-
     MaNGOS::MonsterChatBuilder say_build(*this, CHAT_MSG_MONSTER_YELL, textId, language, target);
     MaNGOS::LocalizedPacketDo<MaNGOS::MonsterChatBuilder> say_do(say_build);
     MaNGOS::CameraDistWorker<MaNGOS::LocalizedPacketDo<MaNGOS::MonsterChatBuilder> > say_worker(this,range,say_do);
-    Cell::VisitWorldObjects(this, say_worker, sWorld.getConfig(CONFIG_FLOAT_LISTEN_RANGE_YELL));
+    Cell::VisitWorldObjects(this, say_worker, range);
 }
 
 void WorldObject::MonsterYellToZone(int32 textId, uint32 language, Unit* target)
@@ -1741,11 +1722,11 @@ void WorldObject::SendObjectDeSpawnAnim(uint64 guid)
     SendMessageToSet(&data, true);
 }
 
-void WorldObject::SendGameObjectCustomAnim(uint64 guid)
+void WorldObject::SendGameObjectCustomAnim(uint64 guid, uint32 animprogress)
 {
     WorldPacket data(SMSG_GAMEOBJECT_CUSTOM_ANIM, 8+4);
     data << uint64(guid);
-    data << uint32(0);                                      // not known what this is
+    data << uint32(animprogress);
     SendMessageToSet(&data, true);
 }
 
@@ -1777,7 +1758,7 @@ Creature* WorldObject::SummonCreature(uint32 id, float x, float y, float z, floa
     if (GetTypeId()==TYPEID_PLAYER)
         team = ((Player*)this)->GetTeam();
 
-    if (!pCreature->Create(sObjectMgr.GenerateLowGuid(HIGHGUID_UNIT), GetMap(), GetPhaseMask(), id, team))
+    if (!pCreature->Create(GetMap()->GenerateLocalLowGuid(HIGHGUID_UNIT), GetMap(), GetPhaseMask(), id, team))
     {
         delete pCreature;
         return NULL;
@@ -1801,11 +1782,37 @@ Creature* WorldObject::SummonCreature(uint32 id, float x, float y, float z, floa
 
     pCreature->Summon(spwtype, despwtime);
 
+    if (GetTypeId() == TYPEID_UNIT)
+        pCreature->SetCreatorGuid(GetObjectGuid());
+
     if(GetTypeId()==TYPEID_UNIT && ((Creature*)this)->AI())
         ((Creature*)this)->AI()->JustSummoned(pCreature);
 
     // return the creature therewith the summoner has access to it
     return pCreature;
+}
+
+GameObject* WorldObject::SummonGameobject(uint32 id, float x, float y, float z, float angle, uint32 despwtime)
+{
+    GameObject* pGameObj = new GameObject;
+
+    Map *map = GetMap();
+
+    if (!map)
+        return NULL;
+
+    if(!pGameObj->Create(map->GenerateLocalLowGuid(HIGHGUID_GAMEOBJECT), id, map,
+        GetPhaseMask(), x, y, z, angle, 0.0f, 0.0f, 0.0f, 0.0f, 100, GO_STATE_READY))
+    {
+        delete pGameObj;
+        return NULL;
+    }
+
+    pGameObj->SetRespawnTime(despwtime/IN_MILLISECONDS);
+
+    map->Add(pGameObj);
+
+    return pGameObj;
 }
 
 namespace MaNGOS
@@ -2131,3 +2138,115 @@ bool WorldObject::IsControlledByPlayer() const
             return false;
     }
 }
+
+void WorldObject::StartGroupLoot( Group* group, uint32 timer )
+{
+    m_groupLootId = group->GetId();
+    m_groupLootTimer = timer;
+}
+
+void WorldObject::StopGroupLoot()
+{
+    if (!m_groupLootId)
+        return;
+
+    if (Group* group = sObjectMgr.GetGroupById(m_groupLootId))
+        group->EndRoll();
+
+    m_groupLootTimer = 0;
+    m_groupLootId = 0;
+}
+
+/**
+ * Return original player who tap creature, it can be different from player/group allowed to loot so not use it for loot code
+ */
+Player* WorldObject::GetOriginalLootRecipient() const
+{
+    return !m_lootRecipientGuid.IsEmpty() ? ObjectAccessor::FindPlayer(m_lootRecipientGuid) : NULL;
+}
+
+/**
+ * Return group if player tap creature as group member, independent is player after leave group or stil be group member
+ */
+Group* WorldObject::GetGroupLootRecipient() const
+{
+    // original recipient group if set and not disbanded
+    return m_lootGroupRecipientId ? sObjectMgr.GetGroupById(m_lootGroupRecipientId) : NULL;
+}
+
+/**
+ * Return player who can loot tapped creature (member of group or single player)
+ *
+ * In case when original player tap creature as group member then group tap prefered.
+ * This is for example important if player after tap leave group.
+ * If group not exist or disbanded or player tap creature not as group member return player
+ */
+Player* WorldObject::GetLootRecipient() const
+{
+    // original recipient group if set and not disbanded
+    Group* group = GetGroupLootRecipient();
+
+    // original recipient player if online
+    Player* player = GetOriginalLootRecipient();
+
+    // if group not set or disbanded return original recipient player if any
+    if (!group)
+        return player;
+
+    // group case
+
+    // return player if it still be in original recipient group
+    if (player && player->GetGroup() == group)
+        return player;
+
+    // find any in group
+    for(GroupReference *itr = group->GetFirstMember(); itr != NULL; itr = itr->next())
+        if (Player *p = itr->getSource())
+            return p;
+
+    return NULL;
+}
+
+/**
+ * Set player and group (if player group member) who tap creature
+ */
+void WorldObject::SetLootRecipient(Unit *unit)
+{
+    // set the player whose group should receive the right
+    // to loot the creature after it dies
+    // should be set to NULL after the loot disappears
+
+    if (!unit)
+    {
+        m_lootRecipientGuid.Clear();
+        m_lootGroupRecipientId = 0;
+        return;
+    }
+
+    Player* player = unit->GetCharmerOrOwnerPlayerOrPlayerItself();
+    if(!player)                                             // normal creature, no player involved
+        return;
+
+    // set player for non group case or if group will disbanded
+    m_lootRecipientGuid = player->GetObjectGuid();
+
+    // set group for group existed case including if player will leave group at loot time
+    if (Group* group = player->GetGroup())
+        m_lootGroupRecipientId = group->GetId();
+
+}
+
+// Frozen Mod
+void Object::ForceValuesUpdateAtIndex(uint32 i)
+{
+    m_uint32Values_mirror[i] = GetUInt32Value(i) + 1; // makes server think the field changed
+    if(m_inWorld)
+    {
+        if(!m_objectUpdated)
+        {
+            AddToClientUpdateList();
+            m_objectUpdated = true;
+        }
+    }
+}
+// Frozen Mod

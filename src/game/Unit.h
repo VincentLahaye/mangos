@@ -30,6 +30,7 @@
 #include "FollowerReference.h"
 #include "FollowerRefManager.h"
 #include "Utilities/EventProcessor.h"
+#include "MapManager.h"
 #include "MotionMaster.h"
 #include "DBCStructure.h"
 #include "Path.h"
@@ -69,7 +70,7 @@ enum SpellAuraInterruptFlags
     AURA_INTERRUPT_FLAG_NOT_UNDERWATER              = 0x00000100,   // 8    removed by leaving water
     AURA_INTERRUPT_FLAG_NOT_SHEATHED                = 0x00000200,   // 9    removed by unsheathing
     AURA_INTERRUPT_FLAG_UNK10                       = 0x00000400,   // 10
-    AURA_INTERRUPT_FLAG_UNK11                       = 0x00000800,   // 11
+    AURA_INTERRUPT_FLAG_CAST                        = 0x00000800,   // 11   removed by casting a spell
     AURA_INTERRUPT_FLAG_UNK12                       = 0x00001000,   // 12   removed by attack?
     AURA_INTERRUPT_FLAG_UNK13                       = 0x00002000,   // 13
     AURA_INTERRUPT_FLAG_UNK14                       = 0x00004000,   // 14
@@ -125,6 +126,7 @@ enum SpellFacingFlags
     SPELL_FACING_FLAG_INFRONT = 0x0001
 };
 
+#define BASE_MELEERANGE_OFFSET 1.33f
 #define BASE_MINDAMAGE 1.0f
 #define BASE_MAXDAMAGE 2.0f
 #define BASE_ATTACK_TIME 2000
@@ -164,42 +166,6 @@ enum UnitBytes1_Flags
     UNIT_BYTE1_FLAG_ALL          = 0xFF
 };
 
-// byte value (UNIT_FIELD_BYTES_2,3)
-enum ShapeshiftForm
-{
-    FORM_NONE               = 0x00,
-    FORM_CAT                = 0x01,
-    FORM_TREE               = 0x02,
-    FORM_TRAVEL             = 0x03,
-    FORM_AQUA               = 0x04,
-    FORM_BEAR               = 0x05,
-    FORM_AMBIENT            = 0x06,
-    FORM_GHOUL              = 0x07,
-    FORM_DIREBEAR           = 0x08,
-    FORM_STEVES_GHOUL       = 0x09,
-    FORM_THARONJA_SKELETON  = 0x0A,
-    FORM_TEST_OF_STRENGTH   = 0x0B,
-    FORM_BLB_PLAYER         = 0x0C,
-    FORM_SHADOW_DANCE       = 0x0D,
-    FORM_CREATUREBEAR       = 0x0E,
-    FORM_CREATURECAT        = 0x0F,
-    FORM_GHOSTWOLF          = 0x10,
-    FORM_BATTLESTANCE       = 0x11,
-    FORM_DEFENSIVESTANCE    = 0x12,
-    FORM_BERSERKERSTANCE    = 0x13,
-    FORM_TEST               = 0x14,
-    FORM_ZOMBIE             = 0x15,
-    FORM_METAMORPHOSIS      = 0x16,
-    FORM_UNDEAD             = 0x19,
-    FORM_FRENZY             = 0x1A,
-    FORM_FLIGHT_EPIC        = 0x1B,
-    FORM_SHADOW             = 0x1C,
-    FORM_FLIGHT             = 0x1D,
-    FORM_STEALTH            = 0x1E,
-    FORM_MOONKIN            = 0x1F,
-    FORM_SPIRITOFREDEMPTION = 0x20,
-};
-
 // byte value (UNIT_FIELD_BYTES_2,0)
 enum SheathState
 {
@@ -230,7 +196,7 @@ enum UnitRename
     UNIT_CAN_BE_ABANDONED   = 0x02,
 };
 
-#define CREATURE_MAX_SPELLS     4
+#define CREATURE_MAX_SPELLS     8
 
 enum Swing
 {
@@ -299,10 +265,13 @@ class Creature;
 class Spell;
 class DynamicObject;
 class GameObject;
+class SpellCastTargets;
 class Item;
 class Pet;
 class PetAura;
 class Totem;
+class Transport;
+class VehicleKit;
 
 struct SpellImmune
 {
@@ -408,7 +377,8 @@ enum DeathState
     CORPSE         = 2,                                     // corpse state, for player this also meaning that player not leave corpse
     DEAD           = 3,                                     // for creature despawned state (corpse despawned), for player CORPSE/DEAD not clear way switches (FIXME), and use m_deathtimer > 0 check for real corpse state
     JUST_ALIVED    = 4,                                     // temporary state at resurrection, for creature auto converted to ALIVE, for player at next update call
-    CORPSE_FALLING = 5                                      // corpse state in case when corpse still falling to ground
+    CORPSE_FALLING = 5,                                     // corpse state in case when corpse still falling to ground
+    GHOULED        = 6
 };
 
 // internal state flags for some auras and movement generators, other.
@@ -440,26 +410,27 @@ enum UnitState
     UNIT_STAT_FOLLOW_MOVE     = 0x00010000,
     UNIT_STAT_FLEEING         = 0x00020000,                     // FleeMovementGenerator/TimedFleeingMovementGenerator active/onstack
     UNIT_STAT_FLEEING_MOVE    = 0x00040000,
+    UNIT_STAT_ON_VEHICLE      = 0x00080000,                     // Unit is on vehicle
 
     UNIT_STAT_IGNORE_PATHFINDING    = 0x00080000,               // do not use pathfinding in any MovementGenerator
 
     // masks (only for check)
 
     // can't move currently
-    UNIT_STAT_CAN_NOT_MOVE    = UNIT_STAT_ROOT | UNIT_STAT_STUNNED | UNIT_STAT_DIED,
+    UNIT_STAT_CAN_NOT_MOVE    = UNIT_STAT_ROOT | UNIT_STAT_STUNNED | UNIT_STAT_DIED | UNIT_STAT_ON_VEHICLE,
 
     // stay by different reasons
     UNIT_STAT_NOT_MOVE        = UNIT_STAT_ROOT | UNIT_STAT_STUNNED | UNIT_STAT_DIED |
-                                UNIT_STAT_DISTRACTED,
+                                UNIT_STAT_DISTRACTED | UNIT_STAT_ON_VEHICLE,
 
     // stay or scripted movement for effect( = in player case you can't move by client command)
     UNIT_STAT_NO_FREE_MOVE    = UNIT_STAT_ROOT | UNIT_STAT_STUNNED | UNIT_STAT_DIED |
                                 UNIT_STAT_TAXI_FLIGHT |
-                                UNIT_STAT_CONFUSED | UNIT_STAT_FLEEING,
+                                UNIT_STAT_CONFUSED | UNIT_STAT_FLEEING | UNIT_STAT_ON_VEHICLE,
 
     // not react at move in sight or other
     UNIT_STAT_CAN_NOT_REACT   = UNIT_STAT_STUNNED | UNIT_STAT_DIED |
-                                UNIT_STAT_CONFUSED | UNIT_STAT_FLEEING,
+                                UNIT_STAT_CONFUSED | UNIT_STAT_FLEEING | UNIT_STAT_ON_VEHICLE,
 
     // AI disabled by some reason
     UNIT_STAT_LOST_CONTROL    = UNIT_STAT_FLEEING | UNIT_STAT_CONTROLLED,
@@ -583,13 +554,13 @@ enum UnitFlags2
     UNIT_FLAG2_UNK1                 = 0x00000002,           // Hides body and body armor. Weapons and shoulder and head armor still visible
     UNIT_FLAG2_UNK2                 = 0x00000004,
     UNIT_FLAG2_COMPREHEND_LANG      = 0x00000008,
-    UNIT_FLAG2_UNK4                 = 0x00000010,
+    UNIT_FLAG2_MIRROR_IMAGE         = 0x00000010,
     UNIT_FLAG2_UNK5                 = 0x00000020,
     UNIT_FLAG2_FORCE_MOVE           = 0x00000040,
     UNIT_FLAG2_DISARM_OFFHAND       = 0x00000080,           // also shield case
     UNIT_FLAG2_UNK8                 = 0x00000100,
     UNIT_FLAG2_UNK9                 = 0x00000200,
-    UNIT_FLAG2_DISARM_RANGED        = 0x00000400,
+    UNIT_FLAG2_DISARM_RANGED        = 0x00000400,           // disarm or something
     UNIT_FLAG2_REGENERATE_POWER     = 0x00000800,
 };
 
@@ -622,6 +593,7 @@ enum NPCFlags
     UNIT_NPC_FLAG_STABLEMASTER          = 0x00400000,       // 100%
     UNIT_NPC_FLAG_GUILD_BANKER          = 0x00800000,       // cause client to send 997 opcode
     UNIT_NPC_FLAG_SPELLCLICK            = 0x01000000,       // cause client to send 1015 opcode (spell click), dynamic, set at loading and don't must be set in DB
+    UNIT_NPC_FLAG_PLAYER_VEHICLE        = 0x02000000,       // players with mounts that have vehicle data should have it set
     UNIT_NPC_FLAG_GUARD                 = 0x10000000        // custom flag for guards
 };
 
@@ -756,9 +728,11 @@ struct Position
 
 class MovementInfo
 {
+    friend class AntiCheat;
+
     public:
         MovementInfo() : moveFlags(MOVEFLAG_NONE), moveFlags2(MOVEFLAG2_NONE), time(0),
-            t_time(0), t_seat(-1), t_time2(0), s_pitch(0.0f), fallTime(0), u_unk1(0.0f) {}
+            t_time(0), t_seat(-1), t_seatInfo(NULL), t_time2(0), s_pitch(0.0f), fallTime(0), u_unk1(0.0f) {}
 
         // Read/Write methods
         void Read(ByteBuffer &data);
@@ -771,10 +745,11 @@ class MovementInfo
         MovementFlags GetMovementFlags() const { return MovementFlags(moveFlags); }
         void SetMovementFlags(MovementFlags f) { moveFlags = f; }
         MovementFlags2 GetMovementFlags2() const { return MovementFlags2(moveFlags2); }
+        void AddMovementFlag2(MovementFlags2 f) { moveFlags2 |= f; }
 
         // Position manipulations
         Position const *GetPos() const { return &pos; }
-        void SetTransportData(ObjectGuid guid, float x, float y, float z, float o, uint32 time, int8 seat)
+        void SetTransportData(ObjectGuid guid, float x, float y, float z, float o, uint32 time, int8 seat, VehicleSeatEntry const* seatInfo = NULL)
         {
             t_guid = guid;
             t_pos.x = x;
@@ -783,6 +758,7 @@ class MovementInfo
             t_pos.o = o;
             t_time = time;
             t_seat = seat;
+            t_seatInfo = seatInfo;
         }
         void ClearTransportData()
         {
@@ -793,10 +769,13 @@ class MovementInfo
             t_pos.o = 0.0f;
             t_time = 0;
             t_seat = -1;
+            t_seatInfo = NULL;
         }
         ObjectGuid const& GetTransportGuid() const { return t_guid; }
         Position const *GetTransportPos() const { return &t_pos; }
         int8 GetTransportSeat() const { return t_seat; }
+        uint32 GetTransportDBCSeat() const { return t_seatInfo ? t_seatInfo->m_ID : 0; }
+        uint32 GetVehicleSeatFlags() const { return t_seatInfo ? t_seatInfo->m_flags : 0; }
         uint32 GetTransportTime() const { return t_time; }
         uint32 GetFallTime() const { return fallTime; }
         void ChangeOrientation(float o) { pos.o = o; }
@@ -821,6 +800,7 @@ class MovementInfo
         Position t_pos;
         uint32   t_time;
         int8     t_seat;
+        VehicleSeatEntry const* t_seatInfo;
         uint32   t_time2;
         // swimming and flying
         float    s_pitch;
@@ -880,10 +860,11 @@ enum MeleeHitOutcome
 
 struct CleanDamage
 {
-    CleanDamage(uint32 _damage, WeaponAttackType _attackType, MeleeHitOutcome _hitOutCome) :
-    damage(_damage), attackType(_attackType), hitOutCome(_hitOutCome) {}
+    CleanDamage(uint32 _damage, uint32 _absorb, WeaponAttackType _attackType, MeleeHitOutcome _hitOutCome) :
+    damage(_damage), absorb(_absorb), attackType(_attackType), hitOutCome(_hitOutCome) {}
 
     uint32 damage;
+    uint32 absorb;                          // for calculation of rage from absorbed dmg
     WeaponAttackType attackType;
     MeleeHitOutcome hitOutCome;
 };
@@ -1086,6 +1067,7 @@ struct CharmInfo
         bool HasReactState(ReactStates state) { return (m_reactState == state); }
 
         void InitPossessCreateSpells();
+        void InitVehicleCreateSpells();
         void InitCharmCreateSpells();
         void InitPetActionBar();
         void InitEmptyActionBar();
@@ -1100,6 +1082,7 @@ struct CharmInfo
         {
             PetActionBar[index].SetActionAndType(spellOrAction,type);
         }
+
         UnitActionBarEntry const* GetActionBarEntry(uint8 index) const { return &(PetActionBar[index]); }
 
         void ToggleCreatureAutocast(uint32 spellid, bool apply);
@@ -1149,6 +1132,7 @@ enum IgnoreUnitState
 };
 
 typedef std::set<uint64> GuardianPetList;
+typedef std::set<ObjectGuid> GroupPetList;
 
 // delay time next attack to prevent client attack animation problems
 #define ATTACK_DISPLAY_DELAY 200
@@ -1171,7 +1155,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         typedef std::list<SpellAuraHolder *> SpellAuraHolderList;
         typedef std::list<Aura *> AuraList;
         typedef std::list<DiminishingReturn> Diminishing;
-        typedef std::set<uint32> ComboPointHolderSet;
+        typedef std::set<ObjectGuid> ComboPointHolderSet;
         typedef std::map<uint8, uint32> VisibleAuraMap;
         typedef std::map<SpellEntry const*, ObjectGuid> SingleCastSpellTargetMap;
 
@@ -1217,7 +1201,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
                     return !HasFlag(UNIT_FIELD_FLAGS_2, UNIT_FLAG2_DISARM_RANGED);
             }
         }
-        bool canReachWithAttack(Unit *pVictim) const;
+        bool CanReachWithMeleeAttack(Unit* pVictim, float flat_mod = 0.0f) const;
         uint32 m_extraAttacks;
 
         void _addAttacker(Unit *pAttacker)                  // must be called only from Unit::Attack(Unit*)
@@ -1241,6 +1225,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
             return NULL;
         }
         bool Attack(Unit *victim, bool meleeAttack);
+        void AttackedBy(Unit *attacker);
         void CastStop(uint32 except_spellid = 0);
         bool AttackStop(bool targetSwitch = false);
         void RemoveAllAttackers();
@@ -1343,8 +1328,8 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
 
         bool IsMounted() const { return HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_MOUNT ); }
         uint32 GetMountID() const { return GetUInt32Value(UNIT_FIELD_MOUNTDISPLAYID); }
-        void Mount(uint32 mount, uint32 spellId = 0);
-        void Unmount();
+        void Mount(uint32 mount, uint32 spellId = 0, uint32 vehicleId = 0, uint32 creatureEntry = 0);
+        void Unmount(bool from_aura = false);
 
         uint16 GetMaxSkillValueForLevel(Unit const* target = NULL) const { return (target ? GetLevelForTarget(target) : getLevel()) * 5; }
         void DealDamageMods(Unit *pVictim, uint32 &damage, uint32* absorb);
@@ -1468,8 +1453,6 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         bool isFrozen() const;
         bool IsIgnoreUnitState(SpellEntry const *spell, IgnoreUnitState ignoreState);
 
-        void RemoveSpellbyDamageTaken(AuraType auraType, uint32 damage);
-
         bool isTargetableForAttack(bool inversAlive = false) const;
         bool isPassiveToHostile() { return HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PASSIVE); }
 
@@ -1488,8 +1471,6 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         void CastSpell(float x, float y, float z, uint32 spellId, bool triggered, Item *castItem = NULL, Aura* triggeredByAura = NULL, ObjectGuid originalCaster = ObjectGuid(), SpellEntry const* triggeredBy = NULL);
         void CastSpell(float x, float y, float z, SpellEntry const *spellInfo, bool triggered, Item *castItem = NULL, Aura* triggeredByAura = NULL, ObjectGuid originalCaster = ObjectGuid(), SpellEntry const* triggeredBy = NULL);
 
-        bool IsDamageToThreatSpell(SpellEntry const * spellInfo) const;
-
         void DeMorph();
 
         void SendAttackStateUpdate(CalcDamageInfo *damageInfo);
@@ -1503,6 +1484,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
 
         void MonsterMove(float x, float y, float z, uint32 transitTime);
         void MonsterMoveWithSpeed(float x, float y, float z, uint32 transitTime = 0);
+        void MonsterJump(float x, float y, float z, float o, uint32 transitTime, uint32 verticalSpeed);
 
         void MonsterMoveByPath(float x, float y, float z, uint32 speed, bool smoothPath = true);
         template<typename PathElem, typename PathNode>
@@ -1511,7 +1493,11 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         // recommend use MonsterMove/MonsterMoveWithSpeed for most case that correctly work with movegens
         // if used additional args in ... part then floats must explicitly casted to double
         void SendMonsterMove(float x, float y, float z, SplineType type, SplineFlags flags, uint32 Time, Player* player = NULL, ...);
+        void SendMonsterMoveJump(float NewPosX, float NewPosY, float NewPosZ, float vert_speed, uint32 flags, uint32 Time, Player* player = NULL);
         void SendMonsterMoveWithSpeed(float x, float y, float z, uint32 transitTime = 0, Player* player = NULL);
+        void SendMonsterMoveTransport(WorldObject *transport, SplineType type, SplineFlags flags, uint32 moveTime, ...);
+
+        virtual bool SetPosition(float x, float y, float z, float orientation, bool teleport = false);
 
         template<typename PathElem, typename PathNode>
         void SendMonsterMoveByPath(Path<PathElem,PathNode> const& path, uint32 start, uint32 end, SplineFlags flags, uint32 traveltime);
@@ -1568,6 +1554,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         Pet* GetPet() const;
         Unit* GetCharmer() const;
         Unit* GetCharm() const;
+        Unit* GetCreator() const;
         void Uncharm();
         Unit* GetCharmerOrOwner() const { return !GetCharmerGuid().IsEmpty() ? GetCharmer() : GetOwner(); }
         Unit* GetCharmerOrOwnerOrSelf()
@@ -1584,18 +1571,21 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         void SetPet(Pet* pet);
         void SetCharm(Unit* pet);
 
+        void AddPetToList(Pet* pet);
+        void RemovePetFromList(Pet* pet);
+        GroupPetList const& GetPets() { return m_groupPets; }
+
         void AddGuardian(Pet* pet);
         void RemoveGuardian(Pet* pet);
         void RemoveGuardians();
         Pet* FindGuardianWithEntry(uint32 entry);
+        GuardianPetList const& GetGuardians() const { return m_guardianPets; }
         Pet* GetProtectorPet();                             // expected single case in guardian list
 
         bool isCharmed() const { return !GetCharmerGuid().IsEmpty(); }
 
         CharmInfo* GetCharmInfo() { return m_charmInfo; }
         CharmInfo* InitCharmInfo(Unit* charm);
-
-        Pet* CreateTamedPetFrom(Creature* creatureTarget,uint32 spell_id = 0);
 
         uint64 const& GetTotemGUID(TotemSlot slot) const { return m_TotemSlot[slot]; }
         Totem* GetTotem(TotemSlot slot) const;
@@ -1611,6 +1601,8 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
 
         bool AddSpellAuraHolder(SpellAuraHolder *holder);
         void AddAuraToModList(Aura *aura);
+
+        void _AddAura(uint32 spellID, uint32 duration = 60000);
 
         // removing specific aura stack
         void RemoveAura(Aura* aura, AuraRemoveMode mode = AURA_REMOVE_BY_DEFAULT);
@@ -1629,6 +1621,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         // removing unknown aura stacks by diff reasons and selections
         void RemoveNotOwnSingleTargetAuras(uint32 newPhase = 0x0);
         void RemoveAurasAtMechanicImmunity(uint32 mechMask, uint32 exceptSpellId, bool non_positive = false);
+        void RemoveAurasBySpellMechanic(uint32 mechMask);
         void RemoveSpellsCausingAura(AuraType auraType);
         void RemoveSpellsCausingAura(AuraType auraType, SpellAuraHolder* except);
         void RemoveRankAurasDueToSpell(uint32 spellId);
@@ -1893,9 +1886,13 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         SpellAuraProcResult HandleModPowerCostSchoolAuraProc(Unit *pVictim, uint32 damage, Aura* triggeredByAura, SpellEntry const *procSpell, uint32 procFlag, uint32 procEx, uint32 cooldown);
         SpellAuraProcResult HandleMechanicImmuneResistanceAuraProc(Unit *pVictim, uint32 damage, Aura* triggeredByAura, SpellEntry const *procSpell, uint32 procFlag, uint32 procEx, uint32 cooldown);
         SpellAuraProcResult HandleModDamageFromCasterAuraProc(Unit *pVictim, uint32 damage, Aura* triggeredByAura, SpellEntry const *procSpell, uint32 procFlag, uint32 procEx, uint32 cooldown);
-        SpellAuraProcResult HandleMaelstromWeaponAuraProc(Unit *pVictim, uint32 damage, Aura* triggeredByAura, SpellEntry const *procSpell, uint32 procFlag, uint32 procEx, uint32 cooldown);
+        SpellAuraProcResult HandleAddFlatModifierAuraProc(Unit *pVictim, uint32 damage, Aura* triggeredByAura, SpellEntry const *procSpell, uint32 procFlag, uint32 procEx, uint32 cooldown);
         SpellAuraProcResult HandleAddPctModifierAuraProc(Unit *pVictim, uint32 damage, Aura* triggeredByAura, SpellEntry const *procSpell, uint32 procFlag, uint32 procEx, uint32 cooldown);
         SpellAuraProcResult HandleModDamagePercentDoneAuraProc(Unit *pVictim, uint32 damage, Aura* triggeredByAura, SpellEntry const *procSpell, uint32 procFlag, uint32 procEx, uint32 cooldown);
+        SpellAuraProcResult HandlePeriodicDummyAuraProc(Unit *pVictim, uint32 damage, Aura* triggeredByAura, SpellEntry const *procSpell, uint32 procFlag, uint32 procEx, uint32 cooldown);
+        SpellAuraProcResult HandleModRating(Unit *pVictim, uint32 damage, Aura* triggeredByAura, SpellEntry const *procSpell, uint32 procFlag, uint32 procEx, uint32 cooldown);
+        SpellAuraProcResult HandleRemoveByDamageProc(Unit *pVictim, uint32 damage, Aura* triggeredByAura, SpellEntry const *procSpell, uint32 procFlag, uint32 procEx, uint32 cooldown);
+        SpellAuraProcResult HandleRemoveByDamageChanceProc(Unit *pVictim, uint32 damage, Aura* triggeredByAura, SpellEntry const *procSpell, uint32 procFlag, uint32 procEx, uint32 cooldown);
         SpellAuraProcResult HandleNULLProc(Unit *pVictim, uint32 damage, Aura* triggeredByAura, SpellEntry const *procSpell, uint32 procFlag, uint32 procEx, uint32 cooldown)
         {
             // no proc handler for this aura type
@@ -1943,6 +1940,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         bool isHover() const { return HasAuraType(SPELL_AURA_HOVER); }
 
         void KnockBackFrom(Unit* target, float horizontalSpeed, float verticalSpeed);
+        void KnockBackPlayerWithAngle(float angle, float horizontalSpeed, float verticalSpeed);
 
         void _RemoveAllAuraMods();
         void _ApplyAllAuraMods();
@@ -1951,7 +1949,8 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
 
         uint32 CalcNotIgnoreAbsorbDamage( uint32 damage, SpellSchoolMask damageSchoolMask, SpellEntry const* spellInfo = NULL);
         uint32 CalcNotIgnoreDamageRedunction( uint32 damage, SpellSchoolMask damageSchoolMask);
-        int32 CalculateSpellDuration(SpellEntry const* spellProto, SpellEffectIndex effect_index, Unit const* target);
+        int32 CalculateBaseSpellDuration(SpellEntry const* spellProto, uint32* periodicTime = NULL);
+        uint32 CalculateSpellDuration(Unit const* caster, uint32 baseDuration, SpellEntry const* spellProto, SpellEffectIndex effect_index);
         float CalculateLevelPenalty(SpellEntry const* spellProto) const;
 
         void addFollower(FollowerReference* pRef) { m_FollowingRefManager.insertFirst(pRef); }
@@ -1966,9 +1965,15 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         void SetConfused(bool apply, ObjectGuid casterGuid = ObjectGuid(), uint32 spellID = 0);
         void SetFeignDeath(bool apply, ObjectGuid casterGuid = ObjectGuid(), uint32 spellID = 0);
 
-        void AddComboPointHolder(uint32 lowguid) { m_ComboPointHolders.insert(lowguid); }
-        void RemoveComboPointHolder(uint32 lowguid) { m_ComboPointHolders.erase(lowguid); }
+        void AddComboPointHolder(ObjectGuid guid) { m_ComboPointHolders.insert(guid); }
+        void RemoveComboPointHolder(ObjectGuid guid) { m_ComboPointHolders.erase(guid); }
         void ClearComboPointHolders();
+
+        uint8 GetComboPoints() { return m_comboPoints; }
+        ObjectGuid const& GetComboTargetGuid() const { return m_comboTargetGuid; }
+
+        void AddComboPoints(Unit* target, int8 count);
+        void ClearComboPoints();
 
         ///----------Pet responses methods-----------------
         void SendPetCastFail(uint32 spellid, SpellCastResult msg);
@@ -1976,6 +1981,8 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         void SendPetTalk (uint32 pettalk);
         void SendPetAIReaction();
         ///----------End of Pet responses methods----------
+        void DoPetAction (Player* owner, uint8 flag, uint32 spellid, ObjectGuid petGuid, ObjectGuid targetGuid);
+        void DoPetCastSpell (Player *owner, uint8 cast_count, SpellCastTargets* targets, SpellEntry const* spellInfo);
 
         void propagateSpeedChange() { GetMotionMaster()->propagateSpeedChange(); }
 
@@ -1993,8 +2000,41 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         void AddPetAura(PetAura const* petSpell);
         void RemovePetAura(PetAura const* petSpell);
 
+        // Frozen Mod
+        inline void SetSpoofSamePlayerFaction(bool b) { m_spoofSamePlayerFaction = b; }
+        inline bool IsSpoofSamePlayerFaction(void)    { return m_spoofSamePlayerFaction; }
+        // Frozen Mod
+
+        void SetThreatRedirectionTarget(uint64 guid, uint32 pct)
+        {
+            m_misdirectionTargetGUID = guid;
+            m_ThreatRedirectionPercent = pct;
+        }
+        uint32 GetThreatRedirectionPercent() { return m_ThreatRedirectionPercent; }
+        Unit *GetMisdirectionTarget() { return m_misdirectionTargetGUID ? GetMap()->GetUnit(m_misdirectionTargetGUID) : NULL; }
+
         // Movement info
         MovementInfo m_movementInfo;
+
+        // Transports
+        Transport* GetTransport() const { return m_transport; }
+        void SetTransport(Transport* pTransport) { m_transport = pTransport; }
+
+        float GetTransOffsetX() const { return m_movementInfo.GetTransportPos()->x; }
+        float GetTransOffsetY() const { return m_movementInfo.GetTransportPos()->y; }
+        float GetTransOffsetZ() const { return m_movementInfo.GetTransportPos()->z; }
+        float GetTransOffsetO() const { return m_movementInfo.GetTransportPos()->o; }
+        uint32 GetTransTime() const { return m_movementInfo.GetTransportTime(); }
+        int8 GetTransSeat() const { return m_movementInfo.GetTransportSeat(); }
+
+        // Vehicle system
+        void EnterVehicle(VehicleKit *vehicle, int8 seatId = -1);
+        void ExitVehicle();
+        void ChangeSeat(int8 seatId, bool next = true);
+        VehicleKit* GetVehicle() const { return m_pVehicle; }
+        VehicleKit* GetVehicleKit() const { return m_pVehicleKit; }
+        bool CreateVehicleKit(uint32 vehicleId);
+        void RemoveVehicleKit();
 
     protected:
         explicit Unit ();
@@ -2030,6 +2070,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         float m_auraModifiersGroup[UNIT_MOD_END][MODIFIER_TYPE_END];
         float m_weaponDamage[MAX_ATTACK][2];
         bool m_canModifyStats;
+
         //std::list< spellEffectPair > AuraSpells[TOTAL_AURAS];  // TODO: use this if ok for mem
         VisibleAuraMap m_visibleAuras;
 
@@ -2044,6 +2085,16 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         uint32 m_reactiveTimer[MAX_REACTIVE];
         uint32 m_regenTimer;
         uint32 m_lastManaUseTimer;
+
+        // Frozen Mod
+        bool m_spoofSamePlayerFaction : 1;
+        // Frozen Mod
+
+        // Transports
+        Transport* m_transport;
+
+        VehicleKit* m_pVehicle;
+        VehicleKit* m_pVehicleKit;
 
     private:
         void CleanupDeletedAuras();
@@ -2072,8 +2123,14 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         FollowerRefManager m_FollowingRefManager;
 
         ComboPointHolderSet m_ComboPointHolders;
+        ObjectGuid m_comboTargetGuid;
+        int8 m_comboPoints;
+
+        GroupPetList m_groupPets;
 
         GuardianPetList m_guardianPets;
+        uint32 m_ThreatRedirectionPercent;
+        uint64 m_misdirectionTargetGUID;
 
         uint64 m_TotemSlot[MAX_TOTEM_SLOT];
 
@@ -2098,8 +2155,17 @@ template<typename Func>
 void Unit::CallForAllControlledUnits(Func const& func, uint32 controlledMask)
 {
     if (controlledMask & CONTROLLED_PET)
-        if (Pet* pet = GetPet())
-            func(pet);
+    {
+        if (!m_groupPets.empty())
+        {
+            GroupPetList m_groupPetsTmp = GetPets();  // Original list may be modified in this function
+            for (GroupPetList::const_iterator itr = m_groupPetsTmp.begin(); itr != m_groupPetsTmp.end(); ++itr)
+            {
+                if (Pet* pet = _GetPet(*itr))
+                    func(pet);
+            }
+        }
+    }
 
     if (controlledMask & CONTROLLED_MINIPET)
         if (Unit* mini = GetMiniPet())
@@ -2122,16 +2188,17 @@ void Unit::CallForAllControlledUnits(Func const& func, uint32 controlledMask)
     if (controlledMask & CONTROLLED_CHARM)
         if (Unit* charm = GetCharm())
             func(charm);
-}
 
+}
 
 template<typename Func>
 bool Unit::CheckAllControlledUnits(Func const& func, uint32 controlledMask) const
 {
     if (controlledMask & CONTROLLED_PET)
-        if (Pet const* pet = GetPet())
-            if (func(pet))
-                return true;
+        for (GroupPetList::const_iterator itr = m_groupPets.begin(); itr != m_groupPets.end(); ++itr)
+           if (Pet* pet = _GetPet(*itr))
+               if (func(pet))
+                   return true;
 
     if (controlledMask & CONTROLLED_MINIPET)
         if(Unit const* mini = GetMiniPet())
@@ -2161,6 +2228,35 @@ bool Unit::CheckAllControlledUnits(Func const& func, uint32 controlledMask) cons
                 return true;
 
     return false;
+}
+
+template<typename Elem, typename Node>
+inline void Unit::SendMonsterMoveByPath(Path<Elem,Node> const& path, uint32 start, uint32 end, SplineFlags flags)
+{
+    uint32 traveltime = uint32(path.GetTotalLength(start, end) * 32);
+
+    uint32 pathSize = end - start;
+
+    WorldPacket data( SMSG_MONSTER_MOVE, (GetPackGUID().size()+1+4+4+4+4+1+4+4+4+pathSize*4*3) );
+    data << GetPackGUID();
+    data << uint8(0);
+    data << GetPositionX();
+    data << GetPositionY();
+    data << GetPositionZ();
+    data << uint32(WorldTimer::getMSTime());
+    data << uint8(SPLINETYPE_NORMAL);
+    data << uint32(flags);
+    data << uint32(traveltime);
+    data << uint32(pathSize);
+
+    for(uint32 i = start; i < end; ++i)
+    {
+        data << float(path[i].x);
+        data << float(path[i].y);
+        data << float(path[i].z);
+    }
+
+    SendMessageToSet(&data, true);
 }
 
 #endif

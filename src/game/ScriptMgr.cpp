@@ -850,7 +850,9 @@ void ScriptMgr::LoadScriptNames()
       "UNION "
       "SELECT DISTINCT(ScriptName) FROM scripted_event_id WHERE ScriptName <> '' "
       "UNION "
-      "SELECT DISTINCT(ScriptName) FROM instance_template WHERE ScriptName <> ''");
+      "SELECT DISTINCT(ScriptName) FROM instance_template WHERE ScriptName <> '' "
+      "UNION "
+      "SELECT DISTINCT(ScriptName) FROM world_template WHERE ScriptName <> ''");
 
     if (!result)
     {
@@ -909,6 +911,14 @@ uint32 ScriptMgr::GetEventIdScriptId(uint32 eventId) const
         return itr->second;
 
     return 0;
+}
+
+char const* ScriptMgr::GetScriptLibraryVersion() const
+{
+    if (!m_pGetScriptLibraryVersion)
+        return "";
+
+    return m_pGetScriptLibraryVersion();
 }
 
 CreatureAI* ScriptMgr::GetCreatureAI(Creature* pCreature)
@@ -1043,6 +1053,8 @@ ScriptLoadResult ScriptMgr::LoadScriptLibrary(const char* libName)
 
     m_hScriptLib = MANGOS_LOAD_LIBRARY(name.c_str());
 
+    sLog.outString( ">> Loading %s Script library", name.c_str());
+
     if (!m_hScriptLib)
         return SCRIPT_LOAD_ERR_NOT_FOUND;
 
@@ -1050,6 +1062,7 @@ ScriptLoadResult ScriptMgr::LoadScriptLibrary(const char* libName)
         GetScriptHookPtr((P), (N));             \
         if (!(P))                               \
         {                                       \
+            sLog.outError("ScriptMgr::LoadScriptLibrary(): function %s not found!", N); \
             MANGOS_CLOSE_LIBRARY(m_hScriptLib); \
             m_hScriptLib = NULL;                \
             return SCRIPT_LOAD_ERR_WRONG_API;   \
@@ -1094,12 +1107,7 @@ ScriptLoadResult ScriptMgr::LoadScriptLibrary(const char* libName)
     if (strcmp(pGetMangosRevStr(), REVISION_NR) != 0)
         return SCRIPT_LOAD_ERR_OUTDATED;
 
-    if (m_pOnInitScriptLibrary)
-        m_pOnInitScriptLibrary();
-
-    if (m_pGetScriptLibraryVersion)
-        sWorld.SetScriptsVersion(m_pGetScriptLibraryVersion());
-
+    m_pOnInitScriptLibrary();
     return SCRIPT_LOAD_OK;
 }
 

@@ -84,6 +84,8 @@ enum SpellSpecific
     SPELL_DRINK             = 21,
     SPELL_FOOD_AND_DRINK    = 22,
     SPELL_UA_IMMOLATE       = 23,                           // Unstable Affliction and Immolate
+    SPELL_BLEED_DEBUFF      = 24,                           // Mangle and Trauma
+    SPELL_MAGE_INTELLECT    = 25,
 };
 
 SpellSpecific GetSpellSpecific(uint32 spellId);
@@ -443,6 +445,16 @@ inline bool IsChanneledSpell(SpellEntry const* spellInfo)
     return (spellInfo->AttributesEx & (SPELL_ATTR_EX_CHANNELED_1 | SPELL_ATTR_EX_CHANNELED_2));
 }
 
+inline bool IsNeedCastSpellAtFormApply(SpellEntry const* spellInfo, ShapeshiftForm form)
+{
+    if (!(spellInfo->Attributes & (SPELL_ATTR_PASSIVE | SPELL_ATTR_UNK7)) || !form)
+        return false;
+
+    // passive spells with SPELL_ATTR_EX2_NOT_NEED_SHAPESHIFT are already active without shapeshift, do no recast!
+    return (spellInfo->Stances & (1<<(form-1)) && !(spellInfo->AttributesEx2 & SPELL_ATTR_EX2_NOT_NEED_SHAPESHIFT));
+}
+
+
 inline bool NeedsComboPoints(SpellEntry const* spellInfo)
 {
     return (spellInfo->AttributesEx & (SPELL_ATTR_EX_REQ_TARGET_COMBO_POINTS | SPELL_ATTR_EX_REQ_COMBO_POINTS));
@@ -498,7 +510,7 @@ bool IsDiminishingReturnsGroupDurationLimited(DiminishingGroup group);
 DiminishingReturnsType GetDiminishingReturnsGroupType(DiminishingGroup group);
 int32 GetDiminishingReturnsLimitDuration(DiminishingGroup group, SpellEntry const* spellproto);
 
-SpellEntry const* GetSpellEntryByDifficulty(uint32 id, Difficulty difficulty);
+MANGOS_DLL_SPEC SpellEntry const* GetSpellEntryByDifficulty(uint32 id, Difficulty difficulty);
 
 // Spell proc event related declarations (accessed using SpellMgr functions)
 enum ProcFlags
@@ -539,7 +551,9 @@ enum ProcFlags
     PROC_FLAG_ON_TRAP_ACTIVATION            = 0x00200000,   // 21 On trap activation
 
     PROC_FLAG_TAKEN_OFFHAND_HIT             = 0x00400000,   // 22 Taken off-hand melee attacks(not used)
-    PROC_FLAG_SUCCESSFUL_OFFHAND_HIT        = 0x00800000    // 23 Successful off-hand melee attacks
+    PROC_FLAG_SUCCESSFUL_OFFHAND_HIT        = 0x00800000,   // 23 Successful off-hand melee attacks
+
+    PROC_FLAG_ON_DEATH                      = 0x01000000    // 24 On caster's death
 };
 
 #define MELEE_BASED_TRIGGER_MASK (PROC_FLAG_SUCCESSFUL_MELEE_HIT        | \
@@ -612,9 +626,16 @@ typedef UNORDERED_MAP<uint32, SpellBonusEntry>     SpellBonusMap;
 #define ELIXIR_SHATTRATH_MASK 0x08
 #define ELIXIR_WELL_FED       0x10                          // Some foods have SPELLFAMILY_POTION
 
+struct SpellThreatEntry
+{
+    uint16 threat;
+    float multiplier;
+    float ap_bonus;
+};
+
 typedef std::map<uint32, uint8> SpellElixirMap;
 typedef std::map<uint32, float> SpellProcItemEnchantMap;
-typedef std::map<uint32, uint16> SpellThreatMap;
+typedef std::map<uint32, SpellThreatEntry> SpellThreatMap;
 
 // Spell script target related declarations (accessed using SpellMgr functions)
 enum SpellTargetType
@@ -699,6 +720,8 @@ class PetAura
         int32 damage;
 };
 typedef std::map<uint32, PetAura> SpellPetAuraMap;
+typedef std::vector<PetAura> PetPassiveAuraList;
+typedef std::map<uint32, PetPassiveAuraList> SpellPetPassiveAuraMap;
 
 struct SpellArea
 {
@@ -836,13 +859,24 @@ class SpellMgr
                 return SPELL_NORMAL;
         }
 
-        uint16 GetSpellThreat(uint32 spellid) const
+        SpellThreatEntry const* GetSpellThreatEntry(uint32 spellid) const
         {
             SpellThreatMap::const_iterator itr = mSpellThreatMap.find(spellid);
-            if(itr==mSpellThreatMap.end())
-                return 0;
+            if (itr != mSpellThreatMap.end())
+                return &itr->second;
 
-            return itr->second;
+            return NULL;
+        }
+
+        float GetSpellThreatMultiplier(SpellEntry const *spellInfo) const
+        {
+            if (!spellInfo)
+                return 1.0f;
+
+            if (SpellThreatEntry const *entry = GetSpellThreatEntry(spellInfo->Id))
+                return entry->multiplier;
+
+            return 1.0f;
         }
 
         // Spell proc events
@@ -1023,6 +1057,15 @@ class SpellMgr
                 return NULL;
         }
 
+        PetPassiveAuraList const* GetPetPassiveAuraList(uint32 creature_id)
+        {
+            SpellPetPassiveAuraMap::const_iterator itr = mSpellPetPassiveAuraMap.find(creature_id);
+            if(itr != mSpellPetPassiveAuraMap.end())
+                return &itr->second;
+            else
+                return NULL;
+        }
+
         PetLevelupSpellSet const* GetPetLevelupSpellList(uint32 petFamily) const
         {
             PetLevelupSpellMap::const_iterator itr = mPetLevelupSpellMap.find(petFamily);
@@ -1110,6 +1153,7 @@ class SpellMgr
         SpellBonusMap      mSpellBonusMap;
         SkillLineAbilityMap mSkillLineAbilityMap;
         SpellPetAuraMap     mSpellPetAuraMap;
+        SpellPetPassiveAuraMap     mSpellPetPassiveAuraMap;
         PetLevelupSpellMap  mPetLevelupSpellMap;
         PetDefaultSpellsMap mPetDefaultSpellsMap;           // only spells not listed in related mPetLevelupSpellMap entry
         SpellAreaMap         mSpellAreaMap;

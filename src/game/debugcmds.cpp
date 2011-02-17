@@ -66,6 +66,24 @@ bool ChatHandler::HandleDebugSendSpellFailCommand(char* args)
     return true;
 }
 
+bool ChatHandler::HandleDebugSendCalendarResultCommand(char* args)
+{
+    if (!*args)
+        return false;
+
+    char* c_val = strtok((char*)args, " ");
+    if (!c_val)
+        return false;
+
+    int Value = atoi(c_val);
+
+    char* c_str = strtok(NULL, "");
+    std::string str = c_str;
+
+    m_session->GetPlayer()->SendCalendarResult(CalendarResponseResult(Value), str);
+    return true;
+}
+
 bool ChatHandler::HandleDebugSendPoiCommand(char* args)
 {
     Player *pPlayer = m_session->GetPlayer();
@@ -550,7 +568,7 @@ bool ChatHandler::HandleDebugGetItemStateCommand(char* args)
                     if (container != bag)
                     {
                         PSendSysMessage("%s in bag %u at slot %u has a different container %s from slot %u!",
-                            item2->GetGuidStr().c_str(), bag->GetSlot(), item2->GetSlot(), 
+                            item2->GetGuidStr().c_str(), bag->GetSlot(), item2->GetSlot(),
                             container->GetGuidStr().c_str(), container->GetSlot());
                         error = true; continue;
                     }
@@ -644,50 +662,6 @@ bool ChatHandler::HandleDebugBattlegroundCommand(char* /*args*/)
 bool ChatHandler::HandleDebugArenaCommand(char* /*args*/)
 {
     sBattleGroundMgr.ToggleArenaTesting();
-    return true;
-}
-
-bool ChatHandler::HandleDebugSpawnVehicleCommand(char* args)
-{
-    uint32 entry;
-    if (!ExtractUInt32(&args, entry))
-        return false;
-
-    uint32 id;
-    if (!ExtractUInt32(&args, id))
-        return false;
-
-    CreatureInfo const *ci = ObjectMgr::GetCreatureTemplate(entry);
-    if (!ci)
-        return false;
-
-    VehicleEntry const *ve = sVehicleStore.LookupEntry(id);
-    if (!ve)
-        return false;
-
-    Vehicle *v = new Vehicle;
-    Map *map = m_session->GetPlayer()->GetMap();
-    if (!v->Create(map->GenerateLocalLowGuid(HIGHGUID_VEHICLE), map, entry, id, m_session->GetPlayer()->GetTeam()))
-    {
-        delete v;
-        return false;
-    }
-
-    float px, py, pz;
-    m_session->GetPlayer()->GetClosePoint(px, py, pz, m_session->GetPlayer()->GetObjectBoundingRadius());
-
-    v->Relocate(px, py, pz, m_session->GetPlayer()->GetOrientation());
-
-    if (!v->IsPositionValid())
-    {
-        sLog.outError("Vehicle (guidlow %d, entry %d) not created. Suggested coordinates isn't valid (X: %f Y: %f)",
-            v->GetGUIDLow(), v->GetEntry(), v->GetPositionX(), v->GetPositionY());
-        delete v;
-        return false;
-    }
-
-    map->Add((Creature*)v);
-
     return true;
 }
 
@@ -1093,7 +1067,7 @@ bool ChatHandler::HandleDebugSpellModsCommand(char* args)
     if (!typeStr)
         return false;
 
-    uint16 opcode; 
+    uint16 opcode;
     if (strncmp(typeStr, "flat", strlen(typeStr)) == 0)
         opcode = SMSG_SET_FLAT_SPELL_MODIFIER;
     else if (strncmp(typeStr, "pct", strlen(typeStr)) == 0)

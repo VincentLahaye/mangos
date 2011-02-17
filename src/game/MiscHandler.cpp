@@ -401,12 +401,12 @@ void WorldSession::HandleSetSelectionOpcode( WorldPacket & recv_data )
     ObjectGuid guid;
     recv_data >> guid;
 
-    _player->SetSelectionGuid(guid);
-
     // update reputation list if need
     Unit* unit = ObjectAccessor::GetUnit(*_player, guid );  // can select group members at diff maps
     if (!unit)
         return;
+
+    _player->SetSelectionGuid(guid);
 
     if(FactionTemplateEntry const* factionTemplateEntry = sFactionTemplateStore.LookupEntry(unit->getFaction()))
         _player->GetReputationMgr().SetVisible(factionTemplateEntry);
@@ -958,13 +958,18 @@ void WorldSession::HandleNextCinematicCamera( WorldPacket & /*recv_data*/ )
 void WorldSession::HandleMoveTimeSkippedOpcode( WorldPacket & recv_data )
 {
     /*  WorldSession::Update( WorldTimer::getMSTime() );*/
-    DEBUG_LOG( "WORLD: Time Lag/Synchronization Resent/Update" );
+//    DEBUG_LOG( "WORLD: Time Lag/Synchronization Resent/Update" );
 
     ObjectGuid guid;
+    uint32 time_skipped;
 
     recv_data >> guid.ReadAsPacked();
-    recv_data >> Unused<uint32>();
+    recv_data >> time_skipped;
 
+    DEBUG_LOG( "WORLD: Time Lag/Synchronization Resent/Update, data = %d", time_skipped);
+
+    if (GetPlayer()->GetObjectGuid() == guid)
+        GetPlayer()->GetAntiCheat()->SetTimeSkipped(time_skipped);
     /*
         ObjectGuid guid;
         uint32 time_skipped;
@@ -1090,17 +1095,15 @@ void WorldSession::HandleInspectOpcode(WorldPacket& recv_data)
     data << plr->GetPackGUID();
 
     if(sWorld.getConfig(CONFIG_BOOL_TALENTS_INSPECTING) || _player->isGameMaster())
-    {
         plr->BuildPlayerTalentsInfoData(&data);
-        plr->BuildEnchantmentsInfoData(&data);
-    }
     else
     {
         data << uint32(0);                                  // unspentTalentPoints
         data << uint8(0);                                   // talentGroupCount
         data << uint8(0);                                   // talentGroupIndex
-        data << uint32(0);                                  // slotUsedMask
     }
+
+    plr->BuildEnchantmentsInfoData(&data);
 
     SendPacket(&data);
 }
@@ -1471,7 +1474,7 @@ void WorldSession::HandleCancelMountAuraOpcode( WorldPacket & /*recv_data*/ )
         return;
     }
 
-    _player->Unmount();
+    _player->Unmount(_player->HasAuraType(SPELL_AURA_MOUNTED));
     _player->RemoveSpellsCausingAura(SPELL_AURA_MOUNTED);
 }
 
@@ -1552,4 +1555,80 @@ void WorldSession::HandleHearthandResurrect(WorldPacket & /*recv_data*/)
     _player->BuildPlayerRepop();
     _player->ResurrectPlayer(100);
     _player->TeleportToHomebind();
+}
+
+// Refer-A-Friend
+void WorldSession::HandleGrantLevel(WorldPacket& recv_data)
+{
+    DEBUG_LOG("WORLD: CMSG_GRANT_LEVEL");
+
+    ObjectGuid guid;
+    recv_data >> guid.ReadAsPacked();
+
+    if (!guid.IsPlayer())
+        return;
+
+    Player * target = sObjectMgr.GetPlayer(guid);
+
+    // cheating and other check
+    ReferAFriendError err = _player->GetReferFriendError(target, false);
+
+    if (err)
+    {
+        _player->SendReferFriendError(err, target);
+        return;
+    }
+
+    target->AccessGrantableLevel(_player->GetObjectGuid());
+
+    WorldPacket data(SMSG_PROPOSE_LEVEL_GRANT, 8);
+    data << _player->GetPackGUID();
+    target->GetSession()->SendPacket(&data);
+}
+
+void WorldSession::HandleAcceptGrantLevel(WorldPacket& recv_data)
+{
+    DEBUG_LOG("WORLD: CMSG_ACCEPT_LEVEL_GRANT");
+
+    ObjectGuid guid;
+    recv_data >> guid.ReadAsPacked();
+
+    if (!guid.IsPlayer())
+        return;
+
+    if (!_player->IsAccessGrantableLevel(guid))
+        return;
+
+    _player->AccessGrantableLevel(ObjectGuid());
+    Player * grant_giver = sObjectMgr.GetPlayer(guid);
+
+    if (!grant_giver)
+        return;
+
+    if (grant_giver->GetGrantableLevels())
+        grant_giver->ChangeGrantableLevels(0);
+    else
+        return;
+
+    _player->GiveLevel(_player->getLevel() + 1);
+}
+
+void WorldSession::HandleInstanceLockResponse(WorldPacket& recvPacket)
+{
+    DEBUG_LOG("WORLD: CMSG_INSTANCE_LOCK_WARNING_RESPONSE");
+    uint8 accept;
+    recvPacket >> accept;
+
+    if (!GetPlayer()->HasPendingBind())
+    {
+        sLog.outDetail("InstanceLockResponse: Player %s (guid %u) tried to bind himself/teleport to graveyard without a pending bind!", _player->GetName(), _player->GetGUIDLow());
+        return;
+    }
+
+    if (accept)
+        GetPlayer()->BindToInstance();
+    else
+        GetPlayer()->RepopAtGraveyard();
+
+    GetPlayer()->SetPendingBind(NULL, 0);
 }

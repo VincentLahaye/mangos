@@ -49,7 +49,7 @@
 #include "Util.h"
 #include "ItemEnchantmentMgr.h"
 #include "BattleGroundMgr.h"
-#include "InstanceSaveMgr.h"
+#include "MapPersistentStateMgr.h"
 #include "InstanceData.h"
 #include "CreatureEventAIMgr.h"
 #include "DBCEnums.h"
@@ -169,6 +169,7 @@ bool ChatHandler::HandleReloadAllSpellCommand(char* /*args*/)
     HandleReloadSpellTargetPositionCommand((char*)"a");
     HandleReloadSpellThreatsCommand((char*)"a");
     HandleReloadSpellPetAurasCommand((char*)"a");
+    HandleReloadSpellDisabledCommand((char*)"a");
     return true;
 }
 
@@ -934,6 +935,28 @@ bool ChatHandler::HandleReloadMailLevelRewardCommand(char* /*args*/)
     return true;
 }
 
+bool ChatHandler::HandleReloadSpellDisabledCommand(char* /*arg*/)
+{
+    sLog.outString( "Re-Loading spell disabled table...");
+
+    sObjectMgr.LoadSpellDisabledEntrys();
+
+    SendGlobalSysMessage("DB table `spell_disabled` reloaded.");
+
+    return true;
+}
+
+bool ChatHandler::HandleReloadAntiCheatCommand(char* /*arg*/)
+{
+    sLog.outString( "Re-Loading anticheat config table...");
+
+    sObjectMgr.LoadAntiCheatConfig();
+
+    SendGlobalSysMessage("Anticheat config reloaded.");
+
+    return true;
+}
+
 bool ChatHandler::HandleLoadScriptsCommand(char* args)
 {
     if (!*args)
@@ -1252,7 +1275,7 @@ bool ChatHandler::HandleAchievementCriteriaAddCommand(char* args)
         return false;
 
     uint32 new_val;
-    
+
     if (maxValue)
         new_val = progress < maxValue && maxValue - progress > val ? progress + val : maxValue;
     else
@@ -4091,6 +4114,10 @@ bool ChatHandler::HandleNpcInfoCommand(char* /*args*/)
     std::string defRespawnDelayStr = secsToTimeString(target->GetRespawnDelay(),true);
 
     PSendSysMessage(LANG_NPCINFO_CHAR,  target->GetDBTableGUIDLow(), faction, npcflags, Entry, displayid, nativeid);
+
+    if (cInfo->VehicleId)
+        PSendSysMessage("VehicleId: %u", cInfo->VehicleId);
+
     PSendSysMessage(LANG_NPCINFO_LEVEL, target->getLevel());
     PSendSysMessage(LANG_NPCINFO_HEALTH,target->GetCreateHealth(), target->GetMaxHealth(), target->GetHealth());
     PSendSysMessage(LANG_NPCINFO_FLAGS, target->GetUInt32Value(UNIT_FIELD_FLAGS), target->GetUInt32Value(UNIT_DYNAMIC_FLAGS), target->getFaction());
@@ -4322,6 +4349,9 @@ bool ChatHandler::HandleCharacterLevelCommand(char* args)
     if (newlevel > STRONG_MAX_LEVEL)                        // hardcoded maximum level
         newlevel = STRONG_MAX_LEVEL;
 
+    if (newlevel > sWorld.getConfig(CONFIG_UINT32_MAX_PLAYER_LEVEL))
+        newlevel = sWorld.getConfig(CONFIG_UINT32_MAX_PLAYER_LEVEL);
+
     HandleCharacterLevel(target, target_guid, oldlevel, newlevel);
 
     if (!m_session || m_session->GetPlayer() != target)     // including player==NULL
@@ -4366,6 +4396,9 @@ bool ChatHandler::HandleLevelUpCommand(char* args)
 
     if (newlevel > STRONG_MAX_LEVEL)                        // hardcoded maximum level
         newlevel = STRONG_MAX_LEVEL;
+
+    if (newlevel > sWorld.getConfig(CONFIG_UINT32_MAX_PLAYER_LEVEL))
+        newlevel = sWorld.getConfig(CONFIG_UINT32_MAX_PLAYER_LEVEL);
 
     HandleCharacterLevel(target, target_guid, oldlevel, newlevel);
 
@@ -4604,7 +4637,7 @@ bool ChatHandler::HandleListAurasCommand (char* /*args*/)
     for (Unit::SpellAuraHolderMap::const_iterator itr = uAuras.begin(); itr != uAuras.end(); ++itr)
     {
         bool talent = GetTalentSpellCost(itr->second->GetId()) > 0;
-        
+
         SpellAuraHolder *holder = itr->second;
         char const* name = holder->GetSpellProto()->SpellName[GetSessionDbcLocale()];
 
@@ -4613,7 +4646,7 @@ bool ChatHandler::HandleListAurasCommand (char* /*args*/)
             Aura *aur = holder->GetAuraByEffectIndex(SpellEffectIndex(i));
             if (!aur)
                 continue;
-            
+
             if (m_session)
             {
                 std::ostringstream ss_name;
@@ -6227,13 +6260,13 @@ bool ChatHandler::HandleInstanceListBindsCommand(char* /*args*/)
         Player::BoundInstancesMap &binds = player->GetBoundInstances(Difficulty(i));
         for(Player::BoundInstancesMap::const_iterator itr = binds.begin(); itr != binds.end(); ++itr)
         {
-            InstanceSave *save = itr->second.save;
-            std::string timeleft = secsToTimeString(save->GetResetTime() - time(NULL), true);
+            DungeonPersistentState *state = itr->second.state;
+            std::string timeleft = secsToTimeString(state->GetResetTime() - time(NULL), true);
             if (const MapEntry* entry = sMapStore.LookupEntry(itr->first))
             {
                 PSendSysMessage("map: %d (%s) inst: %d perm: %s diff: %d canReset: %s TTR: %s",
-                    itr->first, entry->name[GetSessionDbcLocale()], save->GetInstanceId(), itr->second.perm ? "yes" : "no",
-                    save->GetDifficulty(), save->CanReset() ? "yes" : "no", timeleft.c_str());
+                    itr->first, entry->name[GetSessionDbcLocale()], state->GetInstanceId(), itr->second.perm ? "yes" : "no",
+                    state->GetDifficulty(), state->CanReset() ? "yes" : "no", timeleft.c_str());
             }
             else
                 PSendSysMessage("bound for a nonexistent map %u", itr->first);
@@ -6242,21 +6275,21 @@ bool ChatHandler::HandleInstanceListBindsCommand(char* /*args*/)
     }
     PSendSysMessage("player binds: %d", counter);
     counter = 0;
-    Group *group = player->GetGroup();
-    if(group)
+
+    if (Group *group = player->GetGroup())
     {
         for(uint8 i = 0; i < MAX_DIFFICULTY; ++i)
         {
             Group::BoundInstancesMap &binds = group->GetBoundInstances(Difficulty(i));
             for(Group::BoundInstancesMap::const_iterator itr = binds.begin(); itr != binds.end(); ++itr)
             {
-                InstanceSave *save = itr->second.save;
-                std::string timeleft = secsToTimeString(save->GetResetTime() - time(NULL), true);
+                DungeonPersistentState *state = itr->second.state;
+                std::string timeleft = secsToTimeString(state->GetResetTime() - time(NULL), true);
                 if (const MapEntry* entry = sMapStore.LookupEntry(itr->first))
                 {
                     PSendSysMessage("map: %d (%s) inst: %d perm: %s diff: %d canReset: %s TTR: %s",
-                        itr->first, entry->name[GetSessionDbcLocale()], save->GetInstanceId(), itr->second.perm ? "yes" : "no",
-                        save->GetDifficulty(), save->CanReset() ? "yes" : "no", timeleft.c_str());
+                        itr->first, entry->name[GetSessionDbcLocale()], state->GetInstanceId(), itr->second.perm ? "yes" : "no",
+                        state->GetDifficulty(), state->CanReset() ? "yes" : "no", timeleft.c_str());
                 }
                 else
                     PSendSysMessage("bound for a nonexistent map %u", itr->first);
@@ -6302,7 +6335,7 @@ bool ChatHandler::HandleInstanceUnbindCommand(char* args)
             }
             if(itr->first != player->GetMapId())
             {
-                InstanceSave *save = itr->second.save;
+                DungeonPersistentState *save = itr->second.state;
                 std::string timeleft = secsToTimeString(save->GetResetTime() - time(NULL), true);
 
                 if (const MapEntry* entry = sMapStore.LookupEntry(itr->first))
@@ -6328,9 +6361,12 @@ bool ChatHandler::HandleInstanceStatsCommand(char* /*args*/)
 {
     PSendSysMessage("instances loaded: %d", sMapMgr.GetNumInstances());
     PSendSysMessage("players in instances: %d", sMapMgr.GetNumPlayersInInstances());
-    PSendSysMessage("instance saves: %d", sInstanceSaveMgr.GetNumInstanceSaves());
-    PSendSysMessage("players bound: %d", sInstanceSaveMgr.GetNumBoundPlayersTotal());
-    PSendSysMessage("groups bound: %d", sInstanceSaveMgr.GetNumBoundGroupsTotal());
+
+    uint32 numSaves, numBoundPlayers, numBoundGroups;
+    sMapPersistentStateMgr.GetStatistics(numSaves, numBoundPlayers, numBoundGroups);
+    PSendSysMessage("instance saves: %d", numSaves);
+    PSendSysMessage("players bound: %d", numBoundPlayers);
+    PSendSysMessage("groups bound: %d", numBoundGroups);
     return true;
 }
 
@@ -6339,21 +6375,16 @@ bool ChatHandler::HandleInstanceSaveDataCommand(char* /*args*/)
     Player* pl = m_session->GetPlayer();
 
     Map* map = pl->GetMap();
-    if (!map->IsDungeon())
-    {
-        PSendSysMessage("Map is not a dungeon.");
-        SetSentErrorMessage(true);
-        return false;
-    }
 
-    if (!((InstanceMap*)map)->GetInstanceData())
+    InstanceData* iData = map->GetInstanceData();
+    if (!iData)
     {
         PSendSysMessage("Map has no instance data.");
         SetSentErrorMessage(true);
         return false;
     }
 
-    ((InstanceMap*)map)->GetInstanceData()->SaveToDB();
+    iData->SaveToDB();
     return true;
 }
 
@@ -6856,6 +6887,44 @@ bool ChatHandler::HandleModifyGenderCommand(char *args)
     return true;
 }
 
+// Delete friends for account
+bool ChatHandler::HandleAccountFriendDeleteCommand(char* args)
+{
+    ///- Get the command line arguments
+    std::string account_name;
+    uint32 targetAccountId = ExtractAccountId(&args, &account_name);
+
+    if (!targetAccountId)
+        return false;
+
+    std::string account_friend_name;
+    uint32 friendAccountId = ExtractAccountId(&args, &account_friend_name);
+
+    if (!friendAccountId)
+        return false;
+
+    AccountOpResult result = sAccountMgr.DeleteRAFLink(targetAccountId, friendAccountId);
+
+    switch(result)
+    {
+        case AOR_OK:
+            SendSysMessage(LANG_COMMAND_FRIEND);
+            break;
+        default:
+            SendSysMessage(LANG_COMMAND_FRIEND_ERROR);
+            SetSentErrorMessage(true);
+            return false;
+	}
+
+    return true;
+}
+
+// List friends for account
+bool ChatHandler::HandleAccountFriendListCommand(char* args)
+{
+    return false;
+}
+
 bool ChatHandler::HandleMmap(char* args)
 {
     bool on;
@@ -6919,6 +6988,38 @@ bool ChatHandler::HandleMmapTestArea(char* args)
     else
     {
         PSendSysMessage("No creatures in %f yard range.", radius);
+    }
+
+    return true;
+}
+
+// Set friends for account
+bool ChatHandler::HandleAccountFriendAddCommand(char* args)
+{
+    ///- Get the command line arguments
+    std::string account_name;
+    uint32 targetAccountId = ExtractAccountId(&args, &account_name);
+
+    if (!targetAccountId)
+        return false;
+
+    std::string account_friend_name;
+    uint32 friendAccountId = ExtractAccountId(&args, &account_friend_name);
+
+    if (!friendAccountId)
+        return false;
+
+    AccountOpResult result = sAccountMgr.AddRAFLink(targetAccountId, friendAccountId);
+
+    switch(result)
+    {
+        case AOR_OK:
+            SendSysMessage(LANG_COMMAND_FRIEND);
+            break;
+        default:
+            SendSysMessage(LANG_COMMAND_FRIEND_ERROR);
+            SetSentErrorMessage(true);
+            return false;
     }
 
     return true;

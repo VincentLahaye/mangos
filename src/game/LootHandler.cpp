@@ -83,6 +83,7 @@ void WorldSession::HandleAutostoreLootItemOpcode( WorldPacket & recv_data )
             break;
         }
         case HIGHGUID_UNIT:
+        case HIGHGUID_VEHICLE:
         {
             Creature* pCreature = GetPlayer()->GetMap()->GetCreature(lguid);
 
@@ -130,7 +131,8 @@ void WorldSession::HandleAutostoreLootItemOpcode( WorldPacket & recv_data )
     uint8 msg = player->CanStoreNewItem( NULL_BAG, NULL_SLOT, dest, item->itemid, item->count );
     if ( msg == EQUIP_ERR_OK )
     {
-        Item * newitem = player->StoreNewItem( dest, item->itemid, true, item->randomPropertyId);
+        AllowedLooterSet* looters = item->GetAllowedLooters();
+        Item * newitem = player->StoreNewItem( dest, item->itemid, true, item->randomPropertyId, (looters->size() > 1) ? looters : NULL);
 
         if (qitem)
         {
@@ -216,6 +218,7 @@ void WorldSession::HandleLootMoneyOpcode( WorldPacket & /*recv_data*/ )
             break;
         }
         case HIGHGUID_UNIT:
+        case HIGHGUID_VEHICLE:
         {
             Creature* pCreature = GetPlayer()->GetMap()->GetCreature(guid);
 
@@ -448,7 +451,7 @@ void WorldSession::DoLootRelease(ObjectGuid lguid)
                 // normal persistence loot
                 default:
                 {
-                    // must be destroyed only if no loot 
+                    // must be destroyed only if no loot
                     if (pItem->loot.isLooted())
                     {
                         pItem->SetLootState(ITEM_LOOT_REMOVED);
@@ -460,6 +463,7 @@ void WorldSession::DoLootRelease(ObjectGuid lguid)
             return;                                         // item can be looted only single player
         }
         case HIGHGUID_UNIT:
+        case HIGHGUID_VEHICLE:
         {
             Creature* pCreature = GetPlayer()->GetMap()->GetCreature(lguid);
 
@@ -520,7 +524,7 @@ void WorldSession::HandleLootMasterGiveOpcode( WorldPacket & recv_data )
 
     Loot *pLoot = NULL;
 
-    if(lootguid.IsCreature())
+    if(lootguid.IsCreatureOrVehicle())
     {
         Creature *pCreature = GetPlayer()->GetMap()->GetCreature(lootguid);
         if(!pCreature)
@@ -557,6 +561,9 @@ void WorldSession::HandleLootMasterGiveOpcode( WorldPacket & recv_data )
         _player->SendEquipError( msg, NULL, NULL, item.itemid );
         return;
     }
+
+    // list of players allowed to receive this item in trade
+    AllowedLooterSet* looters = item.GetAllowedLooters();
 
     // now move item from loot to target inventory
     Item * newitem = target->StoreNewItem( dest, item.itemid, true, item.randomPropertyId );

@@ -1132,7 +1132,7 @@ void WorldSession::HandleWrapItemOpcode(WorldPacket& recv_data)
     }
 
     // cheating: non-wrapper wrapper (all empty wrappers is stackable)
-    if (!(gift->GetProto()->Flags & ITEM_FLAG_WRAPPER) || gift->GetMaxStackCount() == 1)     
+    if (!(gift->GetProto()->Flags & ITEM_FLAG_WRAPPER) || gift->GetMaxStackCount() == 1)
     {
         _player->SendEquipError( EQUIP_ERR_ITEM_NOT_FOUND, gift, NULL );
         return;
@@ -1418,6 +1418,8 @@ void WorldSession::HandleSocketOpcode(WorldPacket& recv_data)
     }
 
     _player->ToggleMetaGemsActive(slot, true);              // turn on all metagems (except for target item)
+
+    itemTarget->SetSoulboundTradeable(NULL, _player, false); // clear tradeable flag
 }
 
 void WorldSession::HandleCancelTempEnchantmentOpcode(WorldPacket& recv_data)

@@ -45,7 +45,7 @@ GridMap::GridMap()
     m_area_map = NULL;
 
     // Height level data
-    m_gridHeight = INVALID_HEIGHT;
+    m_gridHeight = INVALID_HEIGHT_VALUE;
     m_gridGetHeight = &GridMap::getHeightFromFlat;
     m_V9 = NULL;
     m_V8 = NULL;
@@ -56,7 +56,7 @@ GridMap::GridMap()
     m_liquid_offY   = 0;
     m_liquid_width  = 0;
     m_liquid_height = 0;
-    m_liquidLevel = INVALID_HEIGHT;
+    m_liquidLevel = INVALID_HEIGHT_VALUE;
     m_liquid_type = NULL;
     m_liquid_map  = NULL;
 }
@@ -479,10 +479,10 @@ float GridMap::getLiquidLevel(float x, float y)
     int cy_int = ((int)y & (MAP_RESOLUTION-1)) - m_liquid_offX;
 
     if (cx_int < 0 || cx_int >=m_liquid_height)
-        return INVALID_HEIGHT;
+        return INVALID_HEIGHT_VALUE;
 
     if (cy_int < 0 || cy_int >=m_liquid_width )
-        return INVALID_HEIGHT;
+        return INVALID_HEIGHT_VALUE;
 
     return m_liquid_map[cx_int*m_liquid_width + cy_int];
 }
@@ -779,6 +779,13 @@ float TerrainInfo::GetHeight(float x, float y, float z, bool pUseVmaps, float ma
     else
         vmapHeight = VMAP_INVALID_HEIGHT_VALUE;
 
+    //hack for LK frozen throne true height
+    if (GetAreaId(x,y,z) == 4859)
+    {
+        mapHeight  += 200.0f;
+        vmapHeight += 200.0f;
+    } 
+
     // mapHeight set for any above raw ground Z or <= INVALID_HEIGHT
     // vmapheight set for any under Z value or <= INVALID_HEIGHT
 
@@ -801,6 +808,28 @@ float TerrainInfo::GetHeight(float x, float y, float z, bool pUseVmaps, float ma
     }
 
     return mapHeight;
+}
+
+bool TerrainInfo::IsNextZcoordOK(float x, float y, float oldZ, float maxDiff) const
+{
+    // The fastest way to get an accurate result 90% of the time.
+    // Better result can be obtained like 99% accuracy with a ray light, but the cost is too high and the code is too long.
+    maxDiff = maxDiff >= 100.0f ? 10.0f : sqrtf(maxDiff);
+    bool useVmaps = false;
+    if (GetHeight(x, y, oldZ, false) <  GetHeight(x, y, oldZ, true)) // check use of vmaps
+        useVmaps = true;
+
+    float newZ = GetHeight(x, y, oldZ+maxDiff-2.0f, useVmaps);
+
+    if (fabs(newZ-oldZ) > maxDiff)                              // bad...
+    {
+        useVmaps = !useVmaps;                                     // try change vmap use
+        newZ = GetHeight(x, y, oldZ+maxDiff-2.0f, useVmaps);
+
+        if (fabs(newZ-oldZ) > maxDiff)
+            return false;
+    }
+    return true;
 }
 
 inline bool IsOutdoorWMO(uint32 mogpFlags, int32 adtId, int32 rootId, int32 groupId,
@@ -935,7 +964,7 @@ GridMapLiquidStatus TerrainInfo::getLiquidStatus(float x, float y, float z, uint
 {
     GridMapLiquidStatus result = LIQUID_MAP_NO_WATER;
     VMAP::IVMapManager* vmgr = VMAP::VMapFactory::createOrGetVMapManager();
-    float liquid_level, ground_level = INVALID_HEIGHT;
+    float liquid_level, ground_level = INVALID_HEIGHT_VALUE;
     uint32 liquid_type;
     if (vmgr->GetLiquidLevel(GetMapId(), x, y, z, ReqLiquidType, liquid_level, ground_level, liquid_type))
     {
@@ -1040,7 +1069,7 @@ GridMap * TerrainInfo::GetGrid( const float x, const float y )
     // half opt method
     int gx=(int)(32-x/SIZE_OF_GRIDS);                       //grid x
     int gy=(int)(32-y/SIZE_OF_GRIDS);                       //grid y
-    
+
     //quick check if GridMap already loaded
     GridMap * pMap = m_GridMaps[gx][gy];
     if(!pMap)
@@ -1142,7 +1171,7 @@ TerrainManager::~TerrainManager()
 TerrainInfo * TerrainManager::LoadTerrain(const uint32 mapId)
 {
     Guard _guard(*this);
-    
+
     TerrainInfo * ptr = NULL;
     TerrainDataMap::const_iterator iter = i_TerrainMap.find(mapId);
     if(iter == i_TerrainMap.end())
@@ -1187,7 +1216,7 @@ void TerrainManager::UnloadAll()
 {
     for (TerrainDataMap::iterator it = i_TerrainMap.begin(); it != i_TerrainMap.end(); ++it)
         delete it->second;
-    
+
     i_TerrainMap.clear();
 }
 

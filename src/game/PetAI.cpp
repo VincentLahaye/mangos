@@ -62,7 +62,6 @@ void PetAI::MoveInLineOfSight(Unit *u)
             if(m_creature->IsWithinLOSInMap(u))
             {
                 AttackStart(u);
-                u->RemoveSpellsCausingAura(SPELL_AURA_MOD_STEALTH);
             }
         }
     }
@@ -71,6 +70,9 @@ void PetAI::MoveInLineOfSight(Unit *u)
 void PetAI::AttackStart(Unit *u)
 {
     if(!u || (m_creature->IsPet() && ((Pet*)m_creature)->getPetType() == MINI_PET))
+        return;
+
+    if (!u->isVisibleForOrDetect(m_creature,m_creature,true))
         return;
 
     if(m_creature->Attack(u,true))
@@ -99,6 +101,12 @@ bool PetAI::_needToStop() const
     if(m_creature->isCharmed() && m_creature->getVictim() == m_creature->GetCharmer())
         return true;
 
+    if(m_creature->getVictim() == m_creature->GetCharmerOrOwner())
+        return true;
+
+    if (!m_creature->getVictim()->isVisibleForOrDetect(m_creature,m_creature,true))
+        return true;
+
     return !m_creature->getVictim()->isTargetableForAttack();
 }
 
@@ -110,7 +118,7 @@ void PetAI::_stopAttack()
 
     if(owner && m_creature->GetCharmInfo() && m_creature->GetCharmInfo()->HasCommandState(COMMAND_FOLLOW))
     {
-        m_creature->GetMotionMaster()->MoveFollow(owner,PET_FOLLOW_DIST,PET_FOLLOW_ANGLE);
+        m_creature->GetMotionMaster()->MoveFollow(owner,PET_FOLLOW_DIST, m_creature->IsPet() ? ((Pet*)m_creature)->GetPetFollowAngle() : PET_FOLLOW_ANGLE);
     }
     else
     {
@@ -139,13 +147,21 @@ void PetAI::UpdateAI(const uint32 diff)
     // i_pet.getVictim() can't be used for check in case stop fighting, i_pet.getVictim() clear at Unit death etc.
     if (m_creature->getVictim())
     {
+        bool meleeReach = m_creature->CanReachWithMeleeAttack(m_creature->getVictim());
+
         if (_needToStop())
         {
             DEBUG_FILTER_LOG(LOG_FILTER_AI_AND_MOVEGENSS, "PetAI (guid = %u) is stopping attack.", m_creature->GetGUIDLow());
             _stopAttack();
             return;
         }
-        else if (m_creature->IsStopped() || m_creature->IsWithinDistInMap(m_creature->getVictim(), ATTACK_DISTANCE))
+        else if (!m_creature->getVictim()->isAlive())        // Stop attack if target dead
+        {
+            m_creature->InterruptNonMeleeSpells(false);
+            _stopAttack();
+            return;
+        }
+        else if (m_creature->IsStopped() || meleeReach)
         {
             // required to be stopped cases
             if (m_creature->IsStopped() && m_creature->IsNonMeleeSpellCasted(false))
@@ -156,7 +172,7 @@ void PetAI::UpdateAI(const uint32 diff)
                     return;
             }
             // not required to be stopped case
-            else if (m_creature->isAttackReady() && m_creature->canReachWithAttack(m_creature->getVictim()))
+            else if (m_creature->isAttackReady() && meleeReach)
             {
                 m_creature->AttackerStateUpdate(m_creature->getVictim());
 
@@ -168,7 +184,7 @@ void PetAI::UpdateAI(const uint32 diff)
                 //if pet misses its target, it will also be the first in threat list
                 m_creature->getVictim()->AddThreat(m_creature);
 
-                if( _needToStop() )
+                if (_needToStop())
                     _stopAttack();
             }
         }
@@ -183,13 +199,13 @@ void PetAI::UpdateAI(const uint32 diff)
         {
             if (!m_creature->hasUnitState(UNIT_STAT_FOLLOW) )
             {
-                m_creature->GetMotionMaster()->MoveFollow(owner,PET_FOLLOW_DIST,PET_FOLLOW_ANGLE);
+                m_creature->GetMotionMaster()->MoveFollow(owner,PET_FOLLOW_DIST, m_creature->IsPet() ? ((Pet*)m_creature)->GetPetFollowAngle() : PET_FOLLOW_ANGLE);
             }
         }
     }
 
     // Autocast (casted only in combat or persistent spells in any state)
-    if (!m_creature->IsNonMeleeSpellCasted(false))
+    if (!m_creature->IsNonMeleeSpellCasted(false) && !m_creature->GetObjectGuid().IsVehicle())
     {
         typedef std::vector<std::pair<Unit*, Spell*> > TargetSpellList;
         TargetSpellList targetSpellStore;
@@ -350,6 +366,6 @@ void PetAI::AttackedBy(Unit *attacker)
 {
     //when attacked, fight back in case 1)no victim already AND 2)not set to passive AND 3)not set to stay, unless can it can reach attacker with melee attack anyway
     if(!m_creature->getVictim() && m_creature->GetCharmInfo() && !m_creature->GetCharmInfo()->HasReactState(REACT_PASSIVE) &&
-        (!m_creature->GetCharmInfo()->HasCommandState(COMMAND_STAY) || m_creature->canReachWithAttack(attacker)))
+        (!m_creature->GetCharmInfo()->HasCommandState(COMMAND_STAY) || m_creature->CanReachWithMeleeAttack(attacker)))
         AttackStart(attacker);
 }

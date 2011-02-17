@@ -539,6 +539,14 @@
 				>
 			</File>
 			<File
+				RelativePath="..\..\src\game\AntiCheat.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\..\src\game\AntiCheat.h"
+				>
+			</File>
+			<File
 				RelativePath="..\..\src\game\AuctionHouseHandler.cpp"
 				>
 			</File>
@@ -715,6 +723,22 @@
 				>
 			</File>
 			<File
+				RelativePath="..\..\src\game\ChatLexicsCutter.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\..\src\game\ChatLexicsCutter.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\src\game\ChatLog.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\..\src\game\ChatLog.h"
+				>
+			</File>
+			<File
 				RelativePath="..\..\src\game\CombatHandler.cpp"
 				>
 			</File>
@@ -799,14 +823,6 @@
 				>
 			</File>
 			<File
-				RelativePath="..\..\src\game\InstanceSaveMgr.cpp"
-				>
-			</File>
-			<File
-				RelativePath="..\..\src\game\InstanceSaveMgr.h"
-				>
-			</File>
-			<File
 				RelativePath="..\..\src\game\ItemHandler.cpp"
 				>
 			</File>
@@ -840,6 +856,14 @@
 			</File>
 			<File
 				RelativePath="..\..\src\game\MapManager.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\src\game\MapPersistentStateMgr.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\..\src\game\MapPersistentStateMgr.h"
 				>
 			</File>
 			<File
@@ -1007,6 +1031,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\..\src\game\VehicleHandler.cpp"
+				>
+			</File>
+			<File
 				RelativePath="..\..\src\game\VoiceChatHandler.cpp"
 				>
 			</File>
@@ -1161,6 +1189,12 @@
 			<File
 				RelativePath="..\..\src\game\ArenaTeam.h"
 				>
+			</File>
+			<File
+				RelativePath="..\..\src\game\AuctionHouseBot.cpp">
+			</File>
+			<File
+				RelativePath="..\..\src\game\AuctionHouseBot.h">
 			</File>
 			<File
 				RelativePath="..\..\src\game\AuctionHouseMgr.cpp"
