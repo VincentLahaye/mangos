@@ -11606,7 +11606,7 @@ void Unit::MonsterJump(float x, float y, float z, float o, uint32 transitTime, u
             if (MovementGenerator *movgen = c->GetMotionMaster()->top())
                 movgen->Interrupt(*c);
 
-        GetMap()->CreatureRelocation((Creature*)this, path[end-1].x, path[end-1].y, path[end-1].z, 0.0f);
+        GetMap()->CreatureRelocation((Creature*)this, x, y, z, o);
 
         // finished relocation, movegen can different from top before creature relocation,
         // but apply Reset expected to be safe in any case
