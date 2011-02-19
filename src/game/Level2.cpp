@@ -1086,7 +1086,7 @@ bool ChatHandler::HandleGameObjectAddCommand(char* args)
     Map *map = chr->GetMap();
 
     GameObject* pGameObj = new GameObject;
-    uint32 db_lowGUID = sObjectMgr.GenerateLowGuid(HIGHGUID_GAMEOBJECT);
+    uint32 db_lowGUID = map->GenerateLocalLowGuid(HIGHGUID_GAMEOBJECT);
 
     if (!pGameObj->Create(db_lowGUID, gInfo->id, map, chr->GetPhaseMaskForSpawn(), x, y, z, o, 0.0f, 0.0f, 0.0f, 0.0f, GO_ANIMPROGRESS_DEFAULT, GO_STATE_READY))
     {
@@ -1443,6 +1443,33 @@ bool ChatHandler::HandleLookupFactionCommand(char* args)
     return true;
 }
 
+bool ChatHandler::HandleModifyPowerTypeCommand(char* args)
+{
+    if(!*args)
+        return false;
+
+    int32 type = atoi((char*)args);
+
+    if (type < 0 || type >= MAX_POWERS)
+    {
+        SendSysMessage(LANG_BAD_VALUE);
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    Unit* target = getSelectedUnit();
+    if (!target)
+    {
+        SendSysMessage(LANG_SELECT_CHAR_OR_CREATURE);
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    target->setPowerType(Powers(type));
+
+    return true;
+}
+
 bool ChatHandler::HandleModifyRepCommand(char* args)
 {
     if (!*args)
@@ -1559,7 +1586,7 @@ bool ChatHandler::HandleNpcAddCommand(char* args)
     Map *map = chr->GetMap();
 
     Creature* pCreature = new Creature;
-    if (!pCreature->Create(sObjectMgr.GenerateLowGuid(HIGHGUID_UNIT), map, chr->GetPhaseMaskForSpawn(), id))
+    if (!pCreature->Create(map->GenerateLocalLowGuid(HIGHGUID_UNIT), map, chr->GetPhaseMaskForSpawn(), id))
     {
         delete pCreature;
         return false;
@@ -1794,7 +1821,7 @@ bool ChatHandler::HandleNpcDeleteCommand(char* args)
     else
         unit = getSelectedCreature();
 
-    if (!unit || unit->IsPet() || unit->IsTotem() || unit->IsVehicle())
+    if (!unit || unit->IsPet() || unit->IsTotem())
     {
         SendSysMessage(LANG_SELECT_CREATURE);
         SetSentErrorMessage(true);
@@ -2153,72 +2180,7 @@ bool ChatHandler::HandleNpcUnFollowCommand(char* /*args*/)
     PSendSysMessage(LANG_CREATURE_NOT_FOLLOW_YOU_NOW, creature->GetName());
     return true;
 }
-//npc tame handling
-bool ChatHandler::HandleNpcTameCommand(char* /*args*/)
-{
-    Creature *creatureTarget = getSelectedCreature ();
-    if (!creatureTarget || creatureTarget->IsPet ())
-    {
-        PSendSysMessage (LANG_SELECT_CREATURE);
-        SetSentErrorMessage (true);
-        return false;
-    }
 
-    Player *player = m_session->GetPlayer ();
-
-    if (!player->GetPetGuid().IsEmpty())
-    {
-        SendSysMessage(LANG_YOU_ALREADY_HAVE_PET);
-        SetSentErrorMessage(true);
-        return false;
-    }
-
-    CreatureInfo const* cInfo = creatureTarget->GetCreatureInfo();
-
-    if (!cInfo->isTameable(player->CanTameExoticPets()))
-    {
-        PSendSysMessage(LANG_CREATURE_NON_TAMEABLE,cInfo->Entry);
-        SetSentErrorMessage(true);
-        return false;
-    }
-
-    // Everything looks OK, create new pet
-    Pet* pet = player->CreateTamedPetFrom (creatureTarget);
-    if (!pet)
-    {
-        PSendSysMessage (LANG_CREATURE_NON_TAMEABLE,cInfo->Entry);
-        SetSentErrorMessage (true);
-        return false;
-    }
-
-    // place pet before player
-    float x,y,z;
-    player->GetClosePoint(x, y, z, creatureTarget->GetObjectBoundingRadius(), CONTACT_DISTANCE);
-    pet->Relocate (x,y,z,M_PI_F-player->GetOrientation ());
-
-    // set pet to defensive mode by default (some classes can't control controlled pets in fact).
-    pet->GetCharmInfo()->SetReactState(REACT_DEFENSIVE);
-
-    // calculate proper level
-    uint32 level = (creatureTarget->getLevel() < (player->getLevel() - 5)) ? (player->getLevel() - 5) : creatureTarget->getLevel();
-
-    // prepare visual effect for levelup
-    pet->SetUInt32Value(UNIT_FIELD_LEVEL, level - 1);
-
-    // add to world
-    pet->GetMap()->Add((Creature*)pet);
-
-    // visual effect for levelup
-    pet->SetUInt32Value(UNIT_FIELD_LEVEL, level);
-
-    // caster have pet now
-    player->SetPet(pet);
-
-    pet->SavePetToDB(PET_SAVE_AS_CURRENT);
-    player->PetSpellInitialize();
-
-    return true;
-}
 //npc phasemask handling
 //change phasemask of creature or pet
 bool ChatHandler::HandleNpcSetPhaseCommand(char* args)
@@ -3183,7 +3145,7 @@ bool ChatHandler::HandleWpModifyCommand(char* args)
         // create the waypoint creature
         wpGuid = 0;
         Creature* wpCreature = new Creature;
-        if (!wpCreature->Create(sObjectMgr.GenerateLowGuid(HIGHGUID_UNIT), map, chr->GetPhaseMaskForSpawn(), VISUAL_WAYPOINT))
+        if (!wpCreature->Create(map->GenerateLocalLowGuid(HIGHGUID_UNIT), map, chr->GetPhaseMaskForSpawn(), VISUAL_WAYPOINT))
         {
             PSendSysMessage(LANG_WAYPOINT_VP_NOTCREATED, VISUAL_WAYPOINT);
             delete wpCreature;
@@ -3303,7 +3265,7 @@ bool ChatHandler::HandleWpModifyCommand(char* args)
                 wpCreature->AddObjectToRemoveList();
                 // re-create
                 Creature* wpCreature2 = new Creature;
-                if (!wpCreature2->Create(sObjectMgr.GenerateLowGuid(HIGHGUID_UNIT), map, chr->GetPhaseMaskForSpawn(), VISUAL_WAYPOINT))
+                if (!wpCreature2->Create(map->GenerateLocalLowGuid(HIGHGUID_UNIT), map, chr->GetPhaseMaskForSpawn(), VISUAL_WAYPOINT))
                 {
                     PSendSysMessage(LANG_WAYPOINT_VP_NOTCREATED, VISUAL_WAYPOINT);
                     delete wpCreature2;
@@ -3607,7 +3569,7 @@ bool ChatHandler::HandleWpShowCommand(char* args)
             float o = chr->GetOrientation();
 
             Creature* wpCreature = new Creature;
-            if (!wpCreature->Create(sObjectMgr.GenerateLowGuid(HIGHGUID_UNIT), map, chr->GetPhaseMaskForSpawn(), id))
+            if (!wpCreature->Create(map->GenerateLocalLowGuid(HIGHGUID_UNIT), map, chr->GetPhaseMaskForSpawn(), id))
             {
                 PSendSysMessage(LANG_WAYPOINT_VP_NOTCREATED, id);
                 delete wpCreature;
@@ -3665,7 +3627,7 @@ bool ChatHandler::HandleWpShowCommand(char* args)
         Map *map = chr->GetMap();
 
         Creature* pCreature = new Creature;
-        if (!pCreature->Create(sObjectMgr.GenerateLowGuid(HIGHGUID_UNIT),map, chr->GetPhaseMaskForSpawn(), id))
+        if (!pCreature->Create(map->GenerateLocalLowGuid(HIGHGUID_UNIT),map, chr->GetPhaseMaskForSpawn(), id))
         {
             PSendSysMessage(LANG_WAYPOINT_VP_NOTCREATED, id);
             delete pCreature;
@@ -3725,7 +3687,7 @@ bool ChatHandler::HandleWpShowCommand(char* args)
         Map *map = chr->GetMap();
 
         Creature* pCreature = new Creature;
-        if (!pCreature->Create(sObjectMgr.GenerateLowGuid(HIGHGUID_UNIT), map, chr->GetPhaseMaskForSpawn(), id))
+        if (!pCreature->Create(map->GenerateLocalLowGuid(HIGHGUID_UNIT), map, chr->GetPhaseMaskForSpawn(), id))
         {
             PSendSysMessage(LANG_WAYPOINT_NOTCREATED, id);
             delete pCreature;

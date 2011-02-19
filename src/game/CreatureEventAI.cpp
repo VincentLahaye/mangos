@@ -913,6 +913,7 @@ void CreatureEventAI::JustReachedHome()
 
 void CreatureEventAI::EnterEvadeMode()
 {
+    m_creature->ExitVehicle();
     m_creature->RemoveAllAuras();
     m_creature->DeleteThreatList();
     m_creature->CombatStop(true);
@@ -1361,20 +1362,6 @@ void CreatureEventAI::DoScriptText(int32 textEntry, WorldObject* pSource, Unit* 
         case CHAT_TYPE_ZONE_YELL:
             pSource->MonsterYellToZone(textEntry, (*i).second.Language, target);
             break;
-    }
-}
-
-void CreatureEventAI::DoMeleeAttackIfReady()
-{
-    //Make sure our attack is ready before checking distance
-    if (m_creature->isAttackReady())
-    {
-        //If we are within range melee the target
-        if (m_creature->CanReachWithMeleeAttack(m_creature->getVictim()))
-        {
-            m_creature->AttackerStateUpdate(m_creature->getVictim());
-            m_creature->resetAttackTimer();
-        }
     }
 }
 

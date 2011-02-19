@@ -81,7 +81,6 @@ class MANGOS_DLL_SPEC CreatureAI
         virtual void HealBy(Unit * /*healer*/, uint32 /*amount_healed*/) {}
 
         // Helper functions for cast spell
-        CanCastResult DoCastSpellIfCan(Unit* pTarget, uint32 uiSpell, uint32 uiCastFlags = 0, uint64 uiOriginalCasterGUID = 0);
         virtual CanCastResult CanCastSpell(Unit* pTarget, const SpellEntry *pSpell, bool isTriggered);
 
         // Called at any Damage to any victim (before damage apply)
@@ -131,6 +130,9 @@ class MANGOS_DLL_SPEC CreatureAI
         // Called at text emote receive from player
         virtual void ReceiveEmote(Player* /*pPlayer*/, uint32 /*text_emote*/) {}
 
+        // Called at vehicle enter
+        virtual void PassengerBoarded(Unit * /*who*/, int8 /*seatId*/, bool /*apply*/) {}
+
         ///== Triggered Actions Requested ==================
 
         // Called when creature attack expected (if creature can and no have current victim)
@@ -150,6 +152,10 @@ class MANGOS_DLL_SPEC CreatureAI
 
         // Called when victim entered water and creature can not enter water
         virtual bool canReachByRangeAttack(Unit*) { return false; }
+
+        ///== Helper functions =============================
+        bool DoMeleeAttackIfReady();
+        CanCastResult DoCastSpellIfCan(Unit* pTarget, uint32 uiSpell, uint32 uiCastFlags = 0, uint64 uiOriginalCasterGUID = 0);
 
         ///== Fields =======================================
 

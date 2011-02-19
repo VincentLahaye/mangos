@@ -38,6 +38,7 @@
 #include "Formulas.h"
 #include "WaypointMovementGenerator.h"
 #include "InstanceData.h"
+#include "MapPersistentStateMgr.h"
 #include "BattleGroundMgr.h"
 #include "Spell.h"
 #include "Util.h"
@@ -119,8 +120,7 @@ bool ForcedDespawnDelayEvent::Execute(uint64 /*e_time*/, uint32 /*p_time*/)
 
 Creature::Creature(CreatureSubtype subtype) :
 Unit(), i_AI(NULL),
-lootForPickPocketed(false), lootForBody(false), lootForSkin(false), m_groupLootTimer(0), m_groupLootId(0),
-m_lootMoney(0), m_lootGroupRecipientId(0),
+lootForPickPocketed(false), lootForBody(false), lootForSkin(false),m_lootMoney(0),
 m_corpseDecayTimer(0), m_respawnTime(0), m_respawnDelay(25), m_corpseDelay(60), m_respawnradius(5.0f),
 m_subtype(subtype), m_defaultMovementType(IDLE_MOTION_TYPE), m_DBTableGuid(0), m_equipmentId(0),
 m_AlreadyCallAssistance(false), m_AlreadySearchedAssistance(false),
@@ -153,16 +153,19 @@ Creature::~Creature()
 void Creature::AddToWorld()
 {
     ///- Register the creature for guid lookup
-    if(!IsInWorld() && GetObjectGuid().GetHigh() == HIGHGUID_UNIT)
+    if(!IsInWorld() && GetObjectGuid().IsCreatureOrVehicle())
         GetMap()->GetObjectsStore().insert<Creature>(GetGUID(), (Creature*)this);
 
     Unit::AddToWorld();
+
+    if (GetVehicleKit())
+        GetVehicleKit()->Reset();
 }
 
 void Creature::RemoveFromWorld()
 {
     ///- Remove the creature from the accessor
-    if(IsInWorld() && GetObjectGuid().GetHigh() == HIGHGUID_UNIT)
+    if(IsInWorld() && GetObjectGuid().IsCreatureOrVehicle())
         GetMap()->GetObjectsStore().erase<Creature>(GetGUID(), (Creature*)NULL);
 
     Unit::RemoveFromWorld();
@@ -170,7 +173,7 @@ void Creature::RemoveFromWorld()
 
 void Creature::RemoveCorpse()
 {
-    if ((getDeathState() != CORPSE && !m_isDeadByDefault) || (getDeathState() != ALIVE && m_isDeadByDefault))
+    if (((getDeathState() != CORPSE && getDeathState() != GHOULED) && !m_isDeadByDefault) || (getDeathState() != ALIVE && m_isDeadByDefault))
         return;
 
     m_corpseDecayTimer = 0;
@@ -271,6 +274,7 @@ bool Creature::InitEntry(uint32 Entry, CreatureData const* data /*=NULL*/, GameE
     SetDisplayId(display_id);
 
     SetByteValue(UNIT_FIELD_BYTES_0, 2, minfo->gender);
+    SetByteValue(UNIT_FIELD_BYTES_0, 3, uint8(cinfo->powerType));
 
     // Load creature equipment
     if (eventData && eventData->equipment_id)
@@ -454,6 +458,9 @@ void Creature::Update(uint32 update_diff, uint32 diff)
                 lootForBody         = false;
                 lootForSkin         = false;
 
+                // Clear possible auras having IsDeathPersistent() attribute
+                RemoveAllAuras();
+
                 if(m_originalEntry != GetEntry())
                 {
                     // need preserver gameevent state
@@ -564,6 +571,10 @@ void Creature::Update(uint32 update_diff, uint32 diff)
             // CORPSE/DEAD state will processed at next tick (in other case death timer will be updated unexpectedly)
             if(!isAlive())
                 break;
+
+            if (IsPet())                           // Regenerated before
+                break;
+
             if(m_regenTimer > 0)
             {
                 if(update_diff >= m_regenTimer)
@@ -577,9 +588,9 @@ void Creature::Update(uint32 update_diff, uint32 diff)
             if (!isInCombat() || IsPolymorphed())
                 RegenerateHealth();
 
-            RegenerateMana();
-
+            Regenerate(getPowerType());
             m_regenTimer = REGEN_TIME_FULL;
+
             break;
         }
         case CORPSE_FALLING:
@@ -591,49 +602,78 @@ void Creature::Update(uint32 update_diff, uint32 diff)
     }
 }
 
-void Creature::StartGroupLoot( Group* group, uint32 timer )
+void Creature::Regenerate(Powers power)
 {
-    m_groupLootId = group->GetId();
-    m_groupLootTimer = timer;
-}
-
-void Creature::StopGroupLoot()
-{
-    if (!m_groupLootId)
-        return;
-
-    if (Group* group = sObjectMgr.GetGroupById(m_groupLootId))
-        group->EndRoll();
-
-    m_groupLootTimer = 0;
-    m_groupLootId = 0;
-}
-
-void Creature::RegenerateMana()
-{
-    uint32 curValue = GetPower(POWER_MANA);
-    uint32 maxValue = GetMaxPower(POWER_MANA);
+    uint32 curValue = GetPower(power);
+    uint32 maxValue = GetMaxPower(power);
 
     if (curValue >= maxValue)
         return;
 
-    uint32 addvalue = 0;
+    float addvalue = 0.0f;
 
-    // Combat and any controlled creature
-    if (isInCombat() || !GetCharmerOrOwnerGuid().IsEmpty())
+    switch(power)
     {
-        if(!IsUnderLastManaUseEffect())
+        case POWER_MANA:
         {
-            float ManaIncreaseRate = sWorld.getConfig(CONFIG_FLOAT_RATE_POWER_MANA);
-            float Spirit = GetStat(STAT_SPIRIT);
+            // Combat and any controlled creature
+            if (isInCombat() || !GetCharmerOrOwnerGuid().IsEmpty())
+            {
+                if(!IsUnderLastManaUseEffect())
+                {
+                    float ManaIncreaseRate = sWorld.getConfig(CONFIG_FLOAT_RATE_POWER_MANA);
+                    float Spirit = GetStat(STAT_SPIRIT);
 
-            addvalue = uint32((Spirit / 5.0f + 17.0f) * ManaIncreaseRate);
+                    addvalue = int32((Spirit / 5.0f + 17.0f) * ManaIncreaseRate);
+                }
+            }
+            else
+                addvalue = maxValue / 3;
+            break;
         }
-    }
-    else
-        addvalue = maxValue / 3;
+        case POWER_ENERGY:
+            if (GetObjectGuid().IsVehicle())
+            {
+                if (VehicleEntry const* vehicleInfo = sVehicleStore.LookupEntry(GetCreatureInfo()->VehicleId))
+                {
 
-    ModifyPower(POWER_MANA, addvalue);
+                    switch (vehicleInfo->m_powerType)
+                    {
+                        case ENERGY_TYPE_PYRITE:
+                        case ENERGY_TYPE_BLOOD:
+                        case ENERGY_TYPE_OOZE:
+                        break;
+
+                        case ENERGY_TYPE_STEAM:
+                        default:
+                            addvalue = 10 * sWorld.getConfig(CONFIG_FLOAT_RATE_POWER_ENERGY);
+                        break;
+                    }
+                }
+            }
+            else
+                addvalue = 20 * sWorld.getConfig(CONFIG_FLOAT_RATE_POWER_ENERGY);
+            break;
+        case POWER_FOCUS:
+            addvalue = 24 * sWorld.getConfig(CONFIG_FLOAT_RATE_POWER_FOCUS);
+            break;
+        default:
+            return;
+    }
+
+    // Apply modifiers (if any)
+
+    AuraList const& ModPowerRegenAuras = GetAurasByType(SPELL_AURA_MOD_POWER_REGEN);
+    for(AuraList::const_iterator i = ModPowerRegenAuras.begin(); i != ModPowerRegenAuras.end(); ++i)
+        if ((*i)->GetModifier()->m_miscvalue == power)
+            addvalue += (*i)->GetModifier()->m_amount;
+
+    AuraList const& ModPowerRegenPCTAuras = GetAurasByType(SPELL_AURA_MOD_POWER_REGEN_PERCENT);
+    for(AuraList::const_iterator i = ModPowerRegenPCTAuras.begin(); i != ModPowerRegenPCTAuras.end(); ++i)
+        if ((*i)->GetModifier()->m_miscvalue == power)
+            addvalue *= ((*i)->GetModifier()->m_amount + 100) / 100.0f;
+
+    ModifyPower(power, int32(addvalue));
 }
 
 void Creature::RegenerateHealth()
@@ -709,20 +749,36 @@ bool Creature::AIM_Initialize()
 
 bool Creature::Create(uint32 guidlow, Map *map, uint32 phaseMask, uint32 Entry, Team team /*= TEAM_NONE*/, const CreatureData *data /*= NULL*/, GameEventCreatureData const* eventData /*= NULL*/)
 {
+    CreatureInfo const *cinfo = sObjectMgr.GetCreatureTemplate(Entry);
+
+    if (!cinfo)
+    {
+        sLog.outErrorDb("Creature entry %u does not exist.", Entry);
+        return false;
+    }
+
     MANGOS_ASSERT(map);
+
+    HighGuid hi = cinfo->VehicleId ? HIGHGUID_VEHICLE : HIGHGUID_UNIT;
+
+    if (map->GetCreature(ObjectGuid(hi, Entry, guidlow)))
+        return false;
+
+    ObjectGuid guid(hi, Entry, guidlow);
+
     SetMap(map);
     SetPhaseMask(phaseMask,false);
 
     //oX = x;     oY = y;    dX = x;    dY = y;    m_moveTime = 0;    m_startMove = 0;
-    const bool bResult = CreateFromProto(guidlow, Entry, team, data, eventData);
+    const bool bResult = CreateFromProto(guid, Entry, team, data, eventData);
 
     if (bResult)
     {
         //Notify the map's instance data.
         //Only works if you create the object in it, not if it is moves to that map.
         //Normally non-players do not teleport to other maps.
-        if(map->IsDungeon() && ((InstanceMap*)map)->GetInstanceData())
-            ((InstanceMap*)map)->GetInstanceData()->OnCreatureCreate(this);
+        if (InstanceData* iData = map->GetInstanceData())
+            iData->OnCreatureCreate(this);
 
         switch (GetCreatureInfo()->rank)
         {
@@ -921,56 +977,6 @@ void Creature::PrepareBodyLootState()
 }
 
 /**
- * Return original player who tap creature, it can be different from player/group allowed to loot so not use it for loot code
- */
-Player* Creature::GetOriginalLootRecipient() const
-{
-    return !m_lootRecipientGuid.IsEmpty() ? ObjectAccessor::FindPlayer(m_lootRecipientGuid) : NULL;
-}
-
-/**
- * Return group if player tap creature as group member, independent is player after leave group or stil be group member
- */
-Group* Creature::GetGroupLootRecipient() const
-{
-    // original recipient group if set and not disbanded
-    return m_lootGroupRecipientId ? sObjectMgr.GetGroupById(m_lootGroupRecipientId) : NULL;
-}
-
-/**
- * Return player who can loot tapped creature (member of group or single player)
- *
- * In case when original player tap creature as group member then group tap prefered.
- * This is for example important if player after tap leave group.
- * If group not exist or disbanded or player tap creature not as group member return player
- */
-Player* Creature::GetLootRecipient() const
-{
-    // original recipient group if set and not disbanded
-    Group* group = GetGroupLootRecipient();
-
-    // original recipient player if online
-    Player* player = GetOriginalLootRecipient();
-
-    // if group not set or disbanded return original recipient player if any
-    if (!group)
-        return player;
-
-    // group case
-
-    // return player if it still be in original recipient group
-    if (player && player->GetGroup() == group)
-        return player;
-
-    // find any in group
-    for(GroupReference *itr = group->GetFirstMember(); itr != NULL; itr = itr->next())
-        if (Player *p = itr->getSource())
-            return p;
-
-    return NULL;
-}
-
-/**
  * Set player and group (if player group member) who tap creature
  */
 void Creature::SetLootRecipient(Unit *unit)
@@ -1123,19 +1129,33 @@ void Creature::SelectLevel(const CreatureInfo *cinfo, float percentHealth, float
     else
         SetHealthPercent(percentHealth);
 
-    // mana
-    uint32 minmana = std::min(cinfo->maxmana, cinfo->minmana);
-    uint32 maxmana = std::max(cinfo->maxmana, cinfo->minmana);
-    uint32 mana = minmana + uint32(rellevel * (maxmana - minmana));
-
-    SetCreateMana(mana);
-    SetMaxPower(POWER_MANA, mana);                          //MAX Mana
-    SetPower(POWER_MANA, mana);
-
-    // TODO: set UNIT_FIELD_POWER*, for some creature class case (energy, etc)
-
     SetModifierValue(UNIT_MOD_HEALTH, BASE_VALUE, float(health));
-    SetModifierValue(UNIT_MOD_MANA, BASE_VALUE, float(mana));
+
+    Powers powerType = Powers(cinfo->powerType);
+    uint32 maxPower = 0;
+
+    switch(powerType)
+    {
+        case POWER_MANA:
+        {
+            uint32 minmana = std::min(cinfo->maxmana, cinfo->minmana);
+            uint32 maxmana = std::max(cinfo->maxmana, cinfo->minmana);
+            maxPower = minmana + uint32(rellevel * (maxmana - minmana));
+
+            SetCreateMana(maxPower);
+            break;
+        }
+        case POWER_ENERGY:
+        {
+            maxPower = uint32(GetCreatePowers(powerType) * cinfo->power_mod);
+            break;
+        }
+    }
+
+    SetMaxPower(powerType, maxPower);
+    SetPower(powerType, maxPower);
+
+    SetModifierValue(UnitMods(UNIT_MOD_POWER_START + powerType), BASE_VALUE, float(maxPower));
 
     // damage
     float damagemod = _GetDamageMod(rank);
@@ -1206,20 +1226,18 @@ float Creature::GetSpellDamageMod(int32 Rank)
     }
 }
 
-bool Creature::CreateFromProto(uint32 guidlow, uint32 Entry, Team team, const CreatureData *data /*=NULL*/, GameEventCreatureData const* eventData /*=NULL*/)
+bool Creature::CreateFromProto(ObjectGuid guid, uint32 Entry, Team team, const CreatureData *data /*=NULL*/, GameEventCreatureData const* eventData /*=NULL*/)
 {
-    CreatureInfo const *cinfo = ObjectMgr::GetCreatureTemplate(Entry);
-    if(!cinfo)
-    {
-        sLog.outErrorDb("Creature entry %u does not exist.", Entry);
-        return false;
-    }
     m_originalEntry = Entry;
 
-    Object::_Create(guidlow, Entry, HIGHGUID_UNIT);
+    Object::_Create(guid);
 
     if (!UpdateEntry(Entry, team, data, eventData, false))
         return false;
+
+    // Checked at startup
+    if (GetCreatureInfo()->VehicleId)
+        CreateVehicleKit(GetCreatureInfo()->VehicleId);
 
     return true;
 }
@@ -1237,17 +1255,10 @@ bool Creature::LoadFromDB(uint32 guidlow, Map *map)
     GameEventCreatureData const* eventData = sGameEventMgr.GetCreatureUpdateDataForActiveEvent(guidlow);
 
     m_DBTableGuid = guidlow;
-    if (map->GetInstanceId() == 0)
-    {
-        // Creature can be loaded already in map if grid has been unloaded while creature walk to another grid
-        // FIXME: until creature guids is global and for instances used dynamic generated guids
-        // in instance possible load creature duplicates with same DB guid but different in game guids
-        // This will be until implementing per-map creature guids
-        if (map->GetCreature(ObjectGuid(HIGHGUID_UNIT, data->id, guidlow)))
-            return false;
-    }
-    else
-        guidlow = sObjectMgr.GenerateLowGuid(HIGHGUID_UNIT);
+
+    // Creature can be loaded already in map if grid has been unloaded while creature walk to another grid
+    if (map->GetCreature(ObjectGuid(HIGHGUID_UNIT, data->id, guidlow)))
+        return false;
 
     if (!Create(guidlow, map, data->phaseMask, data->id, TEAM_NONE, data, eventData))
         return false;
@@ -1266,7 +1277,8 @@ bool Creature::LoadFromDB(uint32 guidlow, Map *map)
     m_isDeadByDefault = data->is_dead;
     m_deathState = m_isDeadByDefault ? DEAD : ALIVE;
 
-    m_respawnTime  = sObjectMgr.GetCreatureRespawnTime(m_DBTableGuid, GetInstanceId());
+    m_respawnTime  = map->GetPersistentState()->GetCreatureRespawnTime(m_DBTableGuid);
+
     if(m_respawnTime > time(NULL))                          // not ready to respawn
     {
         m_deathState = DEAD;
@@ -1280,7 +1292,8 @@ bool Creature::LoadFromDB(uint32 guidlow, Map *map)
     else if(m_respawnTime)                                  // respawn time set but expired
     {
         m_respawnTime = 0;
-        sObjectMgr.SaveCreatureRespawnTime(m_DBTableGuid,GetInstanceId(),0);
+
+        GetMap()->GetPersistentState()->SaveCreatureRespawnTime(m_DBTableGuid, 0);
     }
 
     uint32 curhealth = data->curhealth;
@@ -1347,6 +1360,19 @@ bool Creature::HasInvolvedQuest(uint32 quest_id) const
     return false;
 }
 
+
+struct CreatureRespawnDeleteWorker
+{
+    explicit CreatureRespawnDeleteWorker(uint32 guid) : i_guid(guid) {}
+
+    void operator() (MapPersistentState* state)
+    {
+        state->SaveCreatureRespawnTime(i_guid, 0);
+    }
+
+    uint32 i_guid;
+};
+
 void Creature::DeleteFromDB()
 {
     if (!m_DBTableGuid)
@@ -1355,7 +1381,9 @@ void Creature::DeleteFromDB()
         return;
     }
 
-    sObjectMgr.SaveCreatureRespawnTime(m_DBTableGuid,GetInstanceId(),0);
+    CreatureRespawnDeleteWorker worker (m_DBTableGuid);
+    sMapPersistentStateMgr.DoForAllStatesWithMapId(GetMapId(), worker);
+
     sObjectMgr.DeleteCreatureData(m_DBTableGuid);
 
     WorldDatabase.BeginTransaction();
@@ -1430,6 +1458,10 @@ void Creature::SetDeathState(DeathState s)
             SetNoSearchAssistance(false);
             UpdateSpeed(MOVE_RUN, false);
         }
+
+        // FIXME: may not be blizzlike
+        if (Pet* pet = GetPet())
+            pet->Unsummon(PET_SAVE_AS_DELETED, this);
 
         // return, since we promote to CORPSE_FALLING. CORPSE_FALLING is promoted to CORPSE at next update.
         if (CanFly() && FallGround())
@@ -1513,7 +1545,7 @@ void Creature::Respawn()
     if (IsDespawned())
     {
         if (m_DBTableGuid)
-            sObjectMgr.SaveCreatureRespawnTime(m_DBTableGuid,GetInstanceId(), 0);
+            GetMap()->GetPersistentState()->SaveCreatureRespawnTime(m_DBTableGuid, 0);
         m_respawnTime = time(NULL);                         // respawn at next tick
     }
 }
@@ -1718,7 +1750,8 @@ void Creature::SendAIReaction(AiReaction reactionType)
 
 void Creature::CallAssistance()
 {
-    if( !m_AlreadyCallAssistance && getVictim() && !IsPet() && !isCharmed())
+    // FIXME: should player pets call for assistance?
+    if (!m_AlreadyCallAssistance && getVictim() && !isCharmed())
     {
         SetNoCallAssistance(true);
 
@@ -1812,9 +1845,9 @@ void Creature::SaveRespawnTime()
         return;
 
     if(m_respawnTime > time(NULL))                          // dead (no corpse)
-        sObjectMgr.SaveCreatureRespawnTime(m_DBTableGuid, GetInstanceId(), m_respawnTime);
+        GetMap()->GetPersistentState()->SaveCreatureRespawnTime(m_DBTableGuid, m_respawnTime);
     else if (m_corpseDecayTimer > 0)                        // dead (corpse)
-        sObjectMgr.SaveCreatureRespawnTime(m_DBTableGuid, GetInstanceId(), time(NULL) + m_respawnDelay + m_corpseDecayTimer / IN_MILLISECONDS);
+        GetMap()->GetPersistentState()->SaveCreatureRespawnTime(m_DBTableGuid, time(NULL) + m_respawnDelay + m_corpseDecayTimer / IN_MILLISECONDS);
 }
 
 bool Creature::IsOutOfThreatArea(Unit* pVictim) const
@@ -1849,12 +1882,19 @@ CreatureDataAddon const* Creature::GetCreatureAddon() const
 {
     if (m_DBTableGuid)
     {
-        if(CreatureDataAddon const* addon = ObjectMgr::GetCreatureAddon(m_DBTableGuid))
+        if (CreatureDataAddon const* addon = ObjectMgr::GetCreatureAddon(m_DBTableGuid))
             return addon;
     }
 
     // dependent from difficulty mode entry
-    return ObjectMgr::GetCreatureTemplateAddon(GetCreatureInfo()->Entry);
+    if (GetEntry() != GetCreatureInfo()->Entry)
+    {
+        if (CreatureDataAddon const* addon =  ObjectMgr::GetCreatureTemplateAddon(GetCreatureInfo()->Entry))
+            return addon;
+    }
+
+    // fallback to entry of normal mode
+    return ObjectMgr::GetCreatureTemplateAddon(GetEntry());
 }
 
 //creature_addon table
@@ -2371,3 +2411,71 @@ void Creature::ApplyGameEventSpells(GameEventCreatureData const* eventData, bool
     if (cast_spell)
         CastSpell(this, cast_spell, true);
 }
+
+void Creature::FillGuidsListFromThreatList( std::vector<ObjectGuid>& guids, uint32 maxamount /*= 0*/ )
+{
+    if (!CanHaveThreatList())
+        return;
+
+    ThreatList const& threats = getThreatManager().getThreatList();
+
+    maxamount = maxamount > 0 ? std::min(maxamount,uint32(threats.size())) : threats.size();
+
+    guids.reserve(guids.size() + maxamount);
+
+    for (ThreatList::const_iterator itr = threats.begin(); maxamount && itr != threats.end(); ++itr, --maxamount)
+        guids.push_back((*itr)->getUnitGuid());
+}
+
+struct AddCreatureToRemoveListInMapsWorker
+{
+    AddCreatureToRemoveListInMapsWorker(ObjectGuid guid) : i_guid(guid) {}
+
+    void operator() (Map* map)
+    {
+        if (Creature* pCreature = map->GetCreature(i_guid))
+            pCreature->AddObjectToRemoveList();
+    }
+
+    ObjectGuid i_guid;
+};
+
+void Creature::AddToRemoveListInMaps(uint32 db_guid, CreatureData const* data)
+{
+    AddCreatureToRemoveListInMapsWorker worker(ObjectGuid(HIGHGUID_UNIT, data->id, db_guid));
+    sMapMgr.DoForAllMapsWithMapId(data->mapid, worker);
+}
+
+struct SpawnCreatureInMapsWorker
+{
+    SpawnCreatureInMapsWorker(uint32 guid, CreatureData const* data)
+        : i_guid(guid), i_data(data) {}
+
+    void operator() (Map* map)
+    {
+        // We use spawn coords to spawn
+        if (map->IsLoaded(i_data->posX, i_data->posY))
+        {
+            Creature* pCreature = new Creature;
+            //DEBUG_LOG("Spawning creature %u",*itr);
+            if (!pCreature->LoadFromDB(i_guid, map))
+            {
+                delete pCreature;
+            }
+            else
+            {
+                map->Add(pCreature);
+            }
+        }
+    }
+
+    uint32 i_guid;
+    CreatureData const* i_data;
+};
+
+void Creature::SpawnInMaps(uint32 db_guid, CreatureData const* data)
+{
+    SpawnCreatureInMapsWorker worker(db_guid, data);
+    sMapMgr.DoForAllMapsWithMapId(data->mapid, worker);
+}
+

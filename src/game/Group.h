@@ -36,7 +36,7 @@ struct ItemPrototype;
 class WorldSession;
 class Map;
 class BattleGround;
-class InstanceSave;
+class DungeonPersistentState;
 class Field;
 class Unit;
 
@@ -91,6 +91,8 @@ enum GroupMemberFlags
     MEMBER_STATUS_UNK3      = 0x0020,                       // used in calls from Lua_GetPlayerMapPosition/Lua_GetBattlefieldFlagPosition
     MEMBER_STATUS_AFK       = 0x0040,                       // Lua_UnitIsAFK
     MEMBER_STATUS_DND       = 0x0080,                       // Lua_UnitIsDND
+    MEMBER_STATUS_RAF       = 0x0100,                       // RAF status in party/raid
+    MEMBER_STATUS_UNK4      = 0x0200,                       // something to do with vehicles
 };
 
 enum GroupType                                              // group type flags?
@@ -177,11 +179,11 @@ class Roll : public LootValidatorRef
 
 struct InstanceGroupBind
 {
-    InstanceSave *save;
+    DungeonPersistentState *state;
     bool perm;
     /* permanent InstanceGroupBinds exist iff the leader has a permanent
        PlayerInstanceBind for the same instance. */
-    InstanceGroupBind() : save(NULL), perm(false) {}
+    InstanceGroupBind() : state(NULL), perm(false) {}
 };
 
 /** request member stats checken **/
@@ -223,7 +225,7 @@ class MANGOS_DLL_SPEC Group
         void   ChangeLeader(ObjectGuid guid);
         void   SetLootMethod(LootMethod method) { m_lootMethod = method; }
         void   SetLooterGuid(ObjectGuid guid) { m_looterGuid = guid; }
-        void   UpdateLooterGuid( Creature* creature, bool ifneed = false );
+        void   UpdateLooterGuid(WorldObject* object, bool ifneed = false );
         void   SetLootThreshold(ItemQualities threshold) { m_lootThreshold = threshold; }
         void   Disband(bool hideDestroy=false);
 
@@ -346,21 +348,25 @@ class MANGOS_DLL_SPEC Group
         void SendLootRoll(ObjectGuid const& targetGuid, uint8 rollNumber, uint8 rollType, const Roll &r);
         void SendLootRollWon(ObjectGuid const& targetGuid, uint8 rollNumber, RollVote rollType, const Roll &r);
         void SendLootAllPassed(const Roll &r);
-        void GroupLoot(Creature *creature, Loot *loot);
-        void NeedBeforeGreed(Creature *creature, Loot *loot);
-        void MasterLoot(Creature *creature, Loot *loot);
+        void GroupLoot(WorldObject* object, Loot *loot);
+        void NeedBeforeGreed(WorldObject* object, Loot *loot);
+        void MasterLoot(WorldObject* object, Loot *loot);
         bool CountRollVote(Player* player, ObjectGuid const& lootedTarget, uint32 itemSlot, RollVote vote);
-        void StartLootRool(Creature* lootTarget, LootMethod method, Loot* loot, uint8 itemSlot, uint32 maxEnchantingSkill);
+        void StartLootRool(WorldObject* lootTarget, LootMethod method, Loot* loot, uint8 itemSlot, uint32 maxEnchantingSkill);
         void EndRoll();
 
         void LinkMember(GroupReference *pRef) { m_memberMgr.insertFirst(pRef); }
         void DelinkMember(GroupReference* /*pRef*/ ) { }
 
-        InstanceGroupBind* BindToInstance(InstanceSave *save, bool permanent, bool load = false);
+        InstanceGroupBind* BindToInstance(DungeonPersistentState *save, bool permanent, bool load = false);
         void UnbindInstance(uint32 mapid, uint8 difficulty, bool unload = false);
         InstanceGroupBind* GetBoundInstance(uint32 mapId, Player* player);
         InstanceGroupBind* GetBoundInstance(Map* aMap, Difficulty difficulty);
         BoundInstancesMap& GetBoundInstances(Difficulty difficulty) { return m_boundInstances[difficulty]; }
+
+        // Frozen Mod
+        void BroadcastGroupUpdate(void);
+        // Frozen Mod
 
     protected:
         bool _addMember(ObjectGuid guid, const char* name, bool isAssistant=false);

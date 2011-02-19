@@ -37,6 +37,7 @@
 #include "UpdateMask.h"
 #include "Unit.h"
 #include "Language.h"
+#include "AuctionHouseBot.h"
 #include "DBCStores.h"
 #include "Item.h"
 #include "AuctionHouseMgr.h"
@@ -201,7 +202,7 @@ void WorldSession::HandleSendMail(WorldPacket & recv_data )
             return;
         }
 
-        if (item->IsBoundAccountWide() && item->IsSoulBound() && pl->GetSession()->GetAccountId() != rc_account)
+        if (item->IsBoundAccountWide() /*&& item->IsSoulBound() */&& pl->GetSession()->GetAccountId() != rc_account)
         {
             pl->SendMailResult(0, MAIL_SEND, MAIL_ERR_EQUIP_ERROR, EQUIP_ERR_ARTEFACTS_ONLY_FOR_OWN_CHARACTERS);
             return;
@@ -696,17 +697,17 @@ void WorldSession::HandleMailCreateTextItem(WorldPacket & recv_data )
     }
 
     Item *bodyItem = new Item;                              // This is not bag and then can be used new Item.
-    if(!bodyItem->Create(sObjectMgr.GenerateLowGuid(HIGHGUID_ITEM), MAIL_BODY_ITEM_TEMPLATE, pl))
+    if (!bodyItem->Create(sObjectMgr.GenerateItemLowGuid(), MAIL_BODY_ITEM_TEMPLATE, pl))
     {
         delete bodyItem;
         return;
     }
 
     // in mail template case we need create new item text
-    if(m->mailTemplateId)
+    if (m->mailTemplateId)
     {
         MailTemplateEntry const* mailTemplateEntry = sMailTemplateStore.LookupEntry(m->mailTemplateId);
-        if(!mailTemplateEntry)
+        if (!mailTemplateEntry)
         {
             pl->SendMailResult(mailId, MAIL_MADE_PERMANENT, MAIL_ERR_INTERNAL_ERROR);
             return;
@@ -964,6 +965,13 @@ void MailDraft::SendReturnToSender(uint32 sender_acc, ObjectGuid sender_guid, Ob
         return;
     }
 
+    // Hack - if aucbot functional, drop returned to this mail anywhere
+    if (sender_guid == auctionbot.GetAHBplayerGUID())
+    {
+        deleteIncludedItems(true);
+        return;
+    }
+
     // prepare mail and send in other case
     bool needItemDelay = false;
 
@@ -1000,6 +1008,16 @@ void MailDraft::SendReturnToSender(uint32 sender_acc, ObjectGuid sender_guid, Ob
  */
 void MailDraft::SendMailTo(MailReceiver const& receiver, MailSender const& sender, MailCheckMask checked, uint32 deliver_delay)
 {
+    // Hack - if aucbot functional, drop sended to this mail anywhere
+    if (receiver.GetPlayerGuid() == auctionbot.GetAHBplayerGUID())
+    {
+        if (!m_items.empty())
+        {
+            deleteIncludedItems(true);
+        }
+        return;
+    }
+
     Player* pReceiver = receiver.GetPlayer();               // can be NULL
 
     if (pReceiver)

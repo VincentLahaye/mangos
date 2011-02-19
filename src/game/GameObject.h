@@ -360,26 +360,26 @@ struct GameObjectInfo
             uint32 creditProxyCreature;                     //1
             uint32 empty1;                                  //2
             uint32 intactEvent;                             //3
-            uint32 empty2;                                  //4
+            uint32 damagedDisplayId;                        //4
             uint32 damagedNumHits;                          //5
-            uint32 empty3;                                  //6
-            uint32 empty4;                                  //7
-            uint32 empty5;                                  //8
+            uint32 empty2;                                  //6
+            uint32 empty3;                                  //7
+            uint32 empty4;                                  //8
             uint32 damagedEvent;                            //9
-            uint32 empty6;                                  //10
-            uint32 empty7;                                  //11
-            uint32 empty8;                                  //12
-            uint32 empty9;                                  //13
+            uint32 destroyedDisplayId;                      //10
+            uint32 empty5;                                  //11
+            uint32 empty6;                                  //12
+            uint32 empty7;                                  //13
             uint32 destroyedEvent;                          //14
-            uint32 empty10;                                 //15
+            uint32 empty8;                                  //15
             uint32 debuildingTimeSecs;                      //16
-            uint32 empty11;                                 //17
+            uint32 empty9;                                  //17
             uint32 destructibleData;                        //18
             uint32 rebuildingEvent;                         //19
-            uint32 empty12;                                 //20
-            uint32 empty13;                                 //21
+            uint32 empty10;                                 //20
+            uint32 empty11;                                 //21
             uint32 damageEvent;                             //22
-            uint32 empty14;                                 //23
+            uint32 empty12;                                 //23
         } destructibleBuilding;
         //34 GAMEOBJECT_TYPE_GUILDBANK - empty
         //35 GAMEOBJECT_TYPE_TRAPDOOR
@@ -452,6 +452,16 @@ struct GameObjectInfo
             case GAMEOBJECT_TYPE_TRAP:        return trap.charges;
             case GAMEOBJECT_TYPE_GUARDPOST:   return guardpost.charges;
             case GAMEOBJECT_TYPE_SPELLCASTER: return spellcaster.charges;
+            default: return 0;
+        }
+    }
+
+    uint32 GetCooldown() const                              // not triggering at detection target or use until coolodwn expire
+    {
+        switch(type)
+        {
+            case GAMEOBJECT_TYPE_TRAP:        return trap.cooldown;
+            case GAMEOBJECT_TYPE_GOOBER:      return goober.cooldown;
             default: return 0;
         }
     }
@@ -592,6 +602,7 @@ class MANGOS_DLL_SPEC GameObject : public WorldObject
         GameObjectInfo const* GetGOInfo() const;
 
         bool IsTransport() const;
+        bool IsDynTransport() const;
 
         uint32 GetDBTableGUIDLow() const { return m_DBTableGuid; }
 
@@ -646,6 +657,12 @@ class MANGOS_DLL_SPEC GameObject : public WorldObject
         uint32 GetRespawnDelay() const { return m_respawnDelayTime; }
         void Refresh();
         void Delete();
+
+        // Functions spawn/remove gameobject with DB guid in all loaded map copies (if point grid loaded in map)
+        // FIXME: it will work for for instanceable maps only after switch to use static guids)
+        static void AddToRemoveListInMaps(uint32 db_guid, GameObjectData const* data);
+        static void SpawnInMaps(uint32 db_guid, GameObjectData const* data);
+
         void getFishLoot(Loot *loot, Player* loot_owner);
         GameobjectTypes GetGoType() const { return GameobjectTypes(GetByteValue(GAMEOBJECT_BYTES_1, 1)); }
         void SetGoType(GameobjectTypes type) { SetByteValue(GAMEOBJECT_BYTES_1, 1, type); }
@@ -704,6 +721,14 @@ class MANGOS_DLL_SPEC GameObject : public WorldObject
         GridReference<GameObject> &GetGridRef() { return m_gridRef; }
 
         uint64 GetRotation() const { return m_rotation; }
+
+        bool IsInRange(float x, float y, float z, float radius) const;
+        void DamageTaken(Unit *pDoneBy, uint32 uiDamage);
+        void Rebuild(Unit *pWho);
+
+        uint32 GetHealth() const { return m_health; }
+        uint32 GetMaxHealth() const { return m_goInfo->destructibleBuilding.intactNumHits + m_goInfo->destructibleBuilding.damagedNumHits; }
+
     protected:
         uint32      m_spellId;
         time_t      m_respawnTime;                          // (secs) time of next respawn (or despawn if GO have owner()),
@@ -711,7 +736,8 @@ class MANGOS_DLL_SPEC GameObject : public WorldObject
         LootState   m_lootState;
         bool        m_spawnedByDefault;
         time_t      m_cooldownTime;                         // used as internal reaction delay time store (not state change reaction).
-                                                            // For traps this: spell casting cooldown, for doors/buttons: reset time.
+        uint32      m_health;
+                                                            // For traps/goober this: spell casting cooldown, for doors/buttons: reset time.
 
         typedef std::set<ObjectGuid> GuidsSet;
 

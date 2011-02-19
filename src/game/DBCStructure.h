@@ -907,8 +907,12 @@ struct GameObjectDisplayInfoEntry
     uint32      Displayid;                                  // 0        m_ID
     // char* filename;                                      // 1
     // uint32 unknown2[10];                                 // 2-11     unknown data
-    float  unknown12;                                       // 12-17    unknown size data, use first value as interact dist, mostly in hacks way
-    // float  unknown13[5];                                 // 12-17    unknown size data
+    float       minX;
+    float       minY;
+    float       minZ;
+    float       maxX;
+    float       maxY;
+    float       maxZ;
     // uint32 unknown18;                                    // 18       unknown data
 };
 
@@ -1163,7 +1167,7 @@ struct MapEntry
     float   ghost_entrance_y;                               // 61 entrance y coordinate in ghost mode  (in most cases = normal entrance)
     //uint32  timeOfDayOverride;                            // 62 time of day override
     uint32  addon;                                          // 63 expansion
-                                                            // 64 some kind of time?
+    uint32  instanceResetOffset;                            // 64 offset used instead of first period while creating reset table
     //uint32 maxPlayers;                                    // 65 max players
 
     // Helpers
@@ -1434,9 +1438,9 @@ struct SpellEntry
     uint32    AttributesEx6;                                // 10       m_attributesExF
     uint32    AttributesEx7;                                // 11       m_attributesExG (0x20 - totems, 0x4 - paladin auras, etc...)
     uint32    Stances;                                      // 12       m_shapeshiftMask
-    // uint32 unk_320_2;                                    // 13       3.2.0
+    // uint32 unk_320_1;                                    // 13       3.2.0
     uint32    StancesNot;                                   // 14       m_shapeshiftExclude
-    // uint32 unk_320_3;                                    // 15       3.2.0
+    // uint32 unk_320_2;                                    // 15       3.2.0
     uint32    Targets;                                      // 16       m_targets
     uint32    TargetCreatureType;                           // 17       m_targetCreatureType
     uint32    RequiresSpellFocus;                           // 18       m_requiresSpellFocus
@@ -1530,7 +1534,7 @@ struct SpellEntry
     uint32    runeCostID;                                   // 226      m_runeCostID
     //uint32    spellMissileID;                             // 227      m_spellMissileID not used
     //uint32  PowerDisplayId;                               // 228      m_powerDisplayID - id from PowerDisplay.dbc, new in 3.1
-    //float   unk_320_4[3];                                 // 229-231  3.2.0
+    //float   unk_320_3[3];                                 // 229-231  3.2.0
     //uint32  spellDescriptionVariableID;                   // 232      m_spellDescriptionVariableID, 3.2.0
     uint32  SpellDifficultyId;                              // 233      m_spellDifficultyID - id from SpellDifficulty.dbc
 
@@ -1645,9 +1649,9 @@ struct SpellItemEnchantmentEntry
     uint32      slot;                                       // 32       m_flags
     uint32      GemID;                                      // 33       m_src_itemID
     uint32      EnchantmentCondition;                       // 34       m_condition_id
-    //uint32      requiredSkill;                            // 35       m_requiredSkillID
-    //uint32      requiredSkillValue;                       // 36       m_requiredSkillRank
-                                                            // 37       new in 3.1
+    uint32      requiredSkill;                              // 35       m_requiredSkillID
+    uint32      requiredSkillValue;                         // 36       m_requiredSkillRank
+    uint32      requiredLevel;                              // 37       m_requiredLevel
 };
 
 struct SpellItemEnchantmentConditionEntry
@@ -1796,7 +1800,7 @@ struct VehicleEntry
     uint32  m_uiLocomotionType;                             // 34
     float   m_msslTrgtImpactTexRadius;                      // 35
     uint32  m_uiSeatIndicatorType;                          // 36
-                                                            // 37, new in 3.1 - powerType
+    uint32  m_powerType;                                    // 37, new in 3.1 - powerType
                                                             // 38, new in 3.1
                                                             // 39, new in 3.1
 };
@@ -1850,6 +1854,7 @@ struct VehicleSeatEntry
     int32   m_uiSkin;                                       // 44
     uint32  m_flagsB;                                       // 45
                                                             // 46-57 added in 3.1, floats mostly
+    bool IsUsable() const { return m_flags & SEAT_FLAG_USABLE; }
 };
 
 struct WMOAreaTableEntry
@@ -1867,6 +1872,7 @@ struct WMOAreaTableEntry
     uint32 areaId;                                          // 10 link to AreaTableEntry.ID
     //char *Name[16];
     //uint32 nameFlags;
+
 };
 
 struct WorldMapAreaEntry

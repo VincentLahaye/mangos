@@ -850,7 +850,9 @@ void ScriptMgr::LoadScriptNames()
       "UNION "
       "SELECT DISTINCT(ScriptName) FROM scripted_event_id WHERE ScriptName <> '' "
       "UNION "
-      "SELECT DISTINCT(ScriptName) FROM instance_template WHERE ScriptName <> ''");
+      "SELECT DISTINCT(ScriptName) FROM instance_template WHERE ScriptName <> '' "
+      "UNION "
+      "SELECT DISTINCT(ScriptName) FROM world_template WHERE ScriptName <> ''");
 
     if (!result)
     {
@@ -1051,6 +1053,8 @@ ScriptLoadResult ScriptMgr::LoadScriptLibrary(const char* libName)
 
     m_hScriptLib = MANGOS_LOAD_LIBRARY(name.c_str());
 
+    sLog.outString( ">> Loading %s Script library", name.c_str());
+
     if (!m_hScriptLib)
         return SCRIPT_LOAD_ERR_NOT_FOUND;
 
@@ -1058,6 +1062,7 @@ ScriptLoadResult ScriptMgr::LoadScriptLibrary(const char* libName)
         GetScriptHookPtr((P), (N));             \
         if (!(P))                               \
         {                                       \
+            sLog.outError("ScriptMgr::LoadScriptLibrary(): function %s not found!", N); \
             MANGOS_CLOSE_LIBRARY(m_hScriptLib); \
             m_hScriptLib = NULL;                \
             return SCRIPT_LOAD_ERR_WRONG_API;   \

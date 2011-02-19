@@ -18,7 +18,6 @@
 
 #include "TemporarySummon.h"
 #include "Log.h"
-#include "ObjectAccessor.h"
 #include "CreatureAI.h"
 
 TemporarySummon::TemporarySummon( ObjectGuid summoner ) :
@@ -104,18 +103,13 @@ void TemporarySummon::Update( uint32 update_diff,  uint32 diff )
                 return;
             }
 
-            if (!isInCombat())
+            if (m_timer <= update_diff)
             {
-                if (m_timer <= update_diff)
-                {
-                    UnSummon();
-                    return;
-                }
-                else
-                    m_timer -= update_diff;
+                UnSummon();
+                return;
             }
-            else if (m_timer != m_lifetime)
-                m_timer = m_lifetime;
+            else
+                m_timer -= update_diff;
             break;
         }
         case TEMPSUMMON_TIMED_OR_DEAD_DESPAWN:
@@ -127,18 +121,13 @@ void TemporarySummon::Update( uint32 update_diff,  uint32 diff )
                 return;
             }
 
-            if (!isInCombat() && isAlive() )
+            if (m_timer <= update_diff)
             {
-                if (m_timer <= update_diff)
-                {
-                    UnSummon();
-                    return;
-                }
-                else
-                    m_timer -= update_diff;
+                UnSummon();
+                return;
             }
-            else if (m_timer != m_lifetime)
-                m_timer = m_lifetime;
+            else
+                m_timer -= update_diff;
             break;
         }
         default:
@@ -164,7 +153,7 @@ void TemporarySummon::UnSummon()
 {
     CombatStop();
 
-    if (GetSummonerGuid().IsCreature())
+    if (GetSummonerGuid().IsCreatureOrVehicle())
         if(Creature* sum = GetMap()->GetCreature(GetSummonerGuid()))
             if (sum->AI())
                 sum->AI()->SummonedCreatureDespawn(this);
