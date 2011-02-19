@@ -6887,6 +6887,112 @@ bool ChatHandler::HandleModifyGenderCommand(char *args)
     return true;
 }
 
+// Delete friends for account
+bool ChatHandler::HandleAccountFriendDeleteCommand(char* args)
+{
+    ///- Get the command line arguments
+    std::string account_name;
+    uint32 targetAccountId = ExtractAccountId(&args, &account_name);
+
+    if (!targetAccountId)
+        return false;
+
+    std::string account_friend_name;
+    uint32 friendAccountId = ExtractAccountId(&args, &account_friend_name);
+
+    if (!friendAccountId)
+        return false;
+
+    AccountOpResult result = sAccountMgr.DeleteRAFLink(targetAccountId, friendAccountId);
+
+    switch(result)
+    {
+        case AOR_OK:
+            SendSysMessage(LANG_COMMAND_FRIEND);
+            break;
+        default:
+            SendSysMessage(LANG_COMMAND_FRIEND_ERROR);
+            SetSentErrorMessage(true);
+            return false;
+	}
+
+    return true;
+}
+
+// List friends for account
+bool ChatHandler::HandleAccountFriendListCommand(char* args)
+{
+    return false;
+}
+
+bool ChatHandler::HandleMmap(char* args)
+{
+    bool on;
+    if (ExtractOnOff(&args, on))
+    {
+        if (on)
+        {
+            sWorld.setConfig(CONFIG_BOOL_MMAP_ENABLED, true);
+            SendSysMessage("WORLD: mmaps are now ENABLED (individual map settings still in effect)");
+        }
+        else
+        {
+            sWorld.setConfig(CONFIG_BOOL_MMAP_ENABLED, false);
+            SendSysMessage("WORLD: mmaps are now DISABLED");
+        }
+        return true;
+    }
+
+    on = sWorld.getConfig(CONFIG_BOOL_MMAP_ENABLED);
+    PSendSysMessage("mmaps are %sabled", on ? "en" : "dis");
+
+    return true;
+}
+
+bool ChatHandler::HandleMmapTestArea(char* args)
+{
+    float radius = 40.0f;
+    ExtractFloat(&args, radius);
+
+    CellPair pair(MaNGOS::ComputeCellPair( m_session->GetPlayer()->GetPositionX(), m_session->GetPlayer()->GetPositionY()) );
+    Cell cell(pair);
+    cell.SetNoCreate();
+
+    std::list<Creature*> creatureList;
+
+    MaNGOS::AnyUnitInObjectRangeCheck go_check(m_session->GetPlayer(), radius);
+    MaNGOS::CreatureListSearcher<MaNGOS::AnyUnitInObjectRangeCheck> go_search(creatureList, go_check);
+    TypeContainerVisitor<MaNGOS::CreatureListSearcher<MaNGOS::AnyUnitInObjectRangeCheck>, GridTypeMapContainer> go_visit(go_search);
+
+    // Get Creatures
+    cell.Visit(pair, go_visit, *(m_session->GetPlayer()->GetMap()), *(m_session->GetPlayer()), radius);
+
+    if (!creatureList.empty())
+    {
+        PSendSysMessage("Found %i Creatures.", creatureList.size());
+
+        uint32 paths = 0;
+        uint32 uStartTime = WorldTimer::getMSTime();
+
+        float gx,gy,gz;
+        m_session->GetPlayer()->GetPosition(gx,gy,gz);
+        for (std::list<Creature*>::iterator itr = creatureList.begin(); itr != creatureList.end(); ++itr)
+        {
+            PathInfo((*itr), gx, gy, gz);
+            ++paths;
+        }
+
+        uint32 uPathLoadTime = WorldTimer::getMSTimeDiff(uStartTime, WorldTimer::getMSTime());
+        PSendSysMessage("Generated %i paths in %i ms", paths, uPathLoadTime);
+    }
+    else
+    {
+        PSendSysMessage("No creatures in %f yard range.", radius);
+    }
+
+    return true;
+}
+
 // Set friends for account
 bool ChatHandler::HandleAccountFriendAddCommand(char* args)
 {
@@ -6918,42 +7024,3 @@ bool ChatHandler::HandleAccountFriendAddCommand(char* args)
 
     return true;
 }
-
-// Delete friends for account
-bool ChatHandler::HandleAccountFriendDeleteCommand(char* args)
-{
-    ///- Get the command line arguments
-    std::string account_name;
-    uint32 targetAccountId = ExtractAccountId(&args, &account_name);
-
-    if (!targetAccountId)
-        return false;
-
-    std::string account_friend_name;
-    uint32 friendAccountId = ExtractAccountId(&args, &account_friend_name);
-
-    if (!friendAccountId)
-        return false;
-
-    AccountOpResult result = sAccountMgr.DeleteRAFLink(targetAccountId, friendAccountId);
-
-    switch(result)
-    {
-        case AOR_OK:
-            SendSysMessage(LANG_COMMAND_FRIEND);
-            break;
-        default:
-            SendSysMessage(LANG_COMMAND_FRIEND_ERROR);
-            SetSentErrorMessage(true);
-            return false;
-    }
-
-    return true;
-}
-
-// List friends for account
-bool ChatHandler::HandleAccountFriendListCommand(char* args)
-{
-    return false;
-}
-
