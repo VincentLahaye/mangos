@@ -30,6 +30,7 @@
 #include "GridNotifiersImpl.h"
 #include "Transports.h"
 #include "ObjectMgr.h"
+#include "GameEventMgr.h"
 #include "World.h"
 #include "Group.h"
 #include "InstanceData.h"
@@ -40,7 +41,6 @@ INSTANTIATE_SINGLETON_1( MapPersistentStateManager );
 static uint32 resetEventTypeDelay[MAX_RESET_EVENT_TYPE] = { 0, 3600, 900, 300, 60 };
 
 //== MapPersistentState functions ==========================
-
 MapPersistentState::MapPersistentState(uint16 MapId, uint32 InstanceId, Difficulty difficulty)
 : m_instanceid(InstanceId), m_mapid(MapId),
   m_difficulty(difficulty), m_usedByMap(NULL)
@@ -128,13 +128,60 @@ void MapPersistentState::ClearRespawnTimes()
     UnloadIfEmpty();
 }
 
+void MapPersistentState::AddCreatureToGrid( uint32 guid, CreatureData const* data )
+{
+    CellPair cell_pair = MaNGOS::ComputeCellPair(data->posX, data->posY);
+    uint32 cell_id = (cell_pair.y_coord*TOTAL_NUMBER_OF_CELLS_PER_MAP) + cell_pair.x_coord;
+
+    m_gridObjectGuids[cell_id].creatures.insert(guid);
+}
+
+void MapPersistentState::RemoveCreatureFromGrid( uint32 guid, CreatureData const* data )
+{
+    CellPair cell_pair = MaNGOS::ComputeCellPair(data->posX, data->posY);
+    uint32 cell_id = (cell_pair.y_coord*TOTAL_NUMBER_OF_CELLS_PER_MAP) + cell_pair.x_coord;
+
+    m_gridObjectGuids[cell_id].creatures.erase(guid);
+}
+
+void MapPersistentState::AddGameobjectToGrid( uint32 guid, GameObjectData const* data )
+{
+    CellPair cell_pair = MaNGOS::ComputeCellPair(data->posX, data->posY);
+    uint32 cell_id = (cell_pair.y_coord*TOTAL_NUMBER_OF_CELLS_PER_MAP) + cell_pair.x_coord;
+
+    m_gridObjectGuids[cell_id].gameobjects.insert(guid);
+}
+
+void MapPersistentState::RemoveGameobjectFromGrid( uint32 guid, GameObjectData const* data )
+{
+    CellPair cell_pair = MaNGOS::ComputeCellPair(data->posX, data->posY);
+    uint32 cell_id = (cell_pair.y_coord*TOTAL_NUMBER_OF_CELLS_PER_MAP) + cell_pair.x_coord;
+
+    m_gridObjectGuids[cell_id].gameobjects.erase(guid);
+}
+
+void MapPersistentState::InitPools()
+{
+    // pool system initialized already for persistent state (can be shared by map states)
+    if (!GetSpawnedPoolData().IsInitialized())
+    {
+        GetSpawnedPoolData().SetInitialized();
+        sPoolMgr.Initialize(this);                          // init pool system data for map persistent state
+        sGameEventMgr.Initialize(this);                     // init pool system data for map persistent state
+    }
+}
+
 //== WorldPersistentState functions ========================
+SpawnedPoolData WorldPersistentState::m_sharedSpawnedPoolData;
 
 bool WorldPersistentState::CanBeUnload() const
 {
     // prevent unload if used for loaded map
     // prevent unload if respawn data still exist (will not prevent reset by scheduler)
-    return MapPersistentState::CanBeUnload() && !HasRespawnTimes();
+    // Note: non instanceable Map never unload until server shutdown and in result for loaded non-instanceable maps map persistent states also not unloaded
+    //       but for proper work pool systems with shared pools state for non-instanceable maps need
+    //       load persistent map states for any non-instanceable maps before Map loading and make sure that it never unloaded
+    return /*MapPersistentState::CanBeUnload() && !HasRespawnTimes()*/ false;
 }
 
 //== DungeonPersistentState functions =====================
@@ -486,7 +533,7 @@ MapPersistentStateManager::~MapPersistentStateManager()
 - adding instance into manager
 - called from DungeonMap::Add, _LoadBoundInstances, LoadGroups
 */
-MapPersistentState* MapPersistentStateManager::AddPersistentState(MapEntry const* mapEntry, uint32 instanceId, Difficulty difficulty, time_t resetTime, bool canReset, bool load)
+MapPersistentState* MapPersistentStateManager::AddPersistentState(MapEntry const* mapEntry, uint32 instanceId, Difficulty difficulty, time_t resetTime, bool canReset, bool load /*=false*/, bool initPools /*= true*/)
 {
     if (MapPersistentState *old_save = GetPersistentState(mapEntry->MapID, instanceId))
         return old_save;
@@ -528,6 +575,9 @@ MapPersistentState* MapPersistentStateManager::AddPersistentState(MapEntry const
         m_instanceSaveByInstanceId[instanceId] = state;
     else
         m_instanceSaveByMapId[mapEntry->MapID] = state;
+
+    if (initPools)
+        state->InitPools();
 
     return state;
 }
@@ -789,8 +839,6 @@ void MapPersistentStateManager::_ResetOrWarnAll(uint32 mapid, Difficulty difficu
         else
             ((DungeonMap*)map2)->Reset(INSTANCE_RESET_GLOBAL);
     }
-
-    // TODO: delete creature/gameobject respawn times even if the maps are not loaded
 }
 
 void MapPersistentStateManager::GetStatistics(uint32& numStates, uint32& numBoundPlayers, uint32& numBoundGroups)
@@ -816,6 +864,19 @@ void MapPersistentStateManager::_CleanupExpiredInstancesAtTime( time_t t )
     _DelHelper(CharacterDatabase, "id, map, instance.difficulty", "instance", "LEFT JOIN instance_reset ON mapid = map AND instance.difficulty =  instance_reset.difficulty WHERE (instance.resettime < '"UI64FMTD"' AND instance.resettime > '0') OR (NOT instance_reset.resettime IS NULL AND instance_reset.resettime < '"UI64FMTD"')",  (uint64)t, (uint64)t);
 }
 
+
+void MapPersistentStateManager::InitWorldMaps()
+{
+    MapPersistentState* state = NULL;                       // need any from created for shared pool state
+    for(uint32 mapid = 0; mapid < sMapStore.GetNumRows(); ++mapid)
+        if (MapEntry const* entry = sMapStore.LookupEntry(mapid))
+            if (!entry->Instanceable())
+                state = AddPersistentState(entry, 0, REGULAR_DIFFICULTY, 0, false, true, false);
+
+    if (state)
+        state->InitPools();
+}
+
 void MapPersistentStateManager::LoadCreatureRespawnTimes()
 {
     // remove outdated data
@@ -823,8 +884,7 @@ void MapPersistentStateManager::LoadCreatureRespawnTimes()
 
     uint32 count = 0;
 
-    QueryResult *result = CharacterDatabase.Query("SELECT guid, respawntime, instance FROM creature_respawn");
-
+    QueryResult *result = CharacterDatabase.Query("SELECT guid, respawntime, map, instance, difficulty, resettime FROM creature_respawn LEFT JOIN instance ON instance = id");
     if(!result)
     {
         barGoLink bar(1);
@@ -845,21 +905,27 @@ void MapPersistentStateManager::LoadCreatureRespawnTimes()
 
         uint32 loguid       = fields[0].GetUInt32();
         uint64 respawn_time = fields[1].GetUInt64();
-        uint32 instanceId   = fields[2].GetUInt32();
+        uint32 mapId        = fields[2].GetUInt32();
+        uint32 instanceId   = fields[3].GetUInt32();
+        uint8 difficulty    = fields[4].GetUInt8();
+
+        time_t resetTime = (time_t)fields[5].GetUInt64();
 
         CreatureData const* data = sObjectMgr.GetCreatureData(loguid);
         if (!data)
             continue;
 
-        MapEntry const* mapEntry = sMapStore.LookupEntry(data->mapid);
+        if (mapId != data->mapid)
+            continue;
+
+        MapEntry const* mapEntry = sMapStore.LookupEntry(mapId);
         if (!mapEntry || (mapEntry->Instanceable() != (instanceId != 0)))
             continue;
 
-        // instances loaded early and respawn data must exist only for existed instances (state loaded) or non-instanced maps
-        MapPersistentState* state = instanceId
-            ? GetPersistentState(data->mapid, instanceId)
-            : AddPersistentState(mapEntry, 0, REGULAR_DIFFICULTY, 0, false, true);
+        if(difficulty >= (!mapEntry->Instanceable() ? REGULAR_DIFFICULTY : (mapEntry->IsRaid() ? MAX_RAID_DIFFICULTY : MAX_DUNGEON_DIFFICULTY)))
+            continue;
 
+        MapPersistentState* state = AddPersistentState(mapEntry, instanceId, Difficulty(difficulty), resetTime, mapEntry->IsDungeon(), true);
         if (!state)
             continue;
 
@@ -882,7 +948,7 @@ void MapPersistentStateManager::LoadGameobjectRespawnTimes()
 
     uint32 count = 0;
 
-    QueryResult *result = CharacterDatabase.Query("SELECT guid, respawntime, instance FROM gameobject_respawn");
+    QueryResult *result = CharacterDatabase.Query("SELECT guid, respawntime, map, instance, difficulty, resettime FROM gameobject_respawn LEFT JOIN instance ON instance = id");
 
     if(!result)
     {
@@ -904,22 +970,27 @@ void MapPersistentStateManager::LoadGameobjectRespawnTimes()
 
         uint32 loguid       = fields[0].GetUInt32();
         uint64 respawn_time = fields[1].GetUInt64();
-        uint32 instanceId   = fields[2].GetUInt32();
+        uint32 mapId        = fields[2].GetUInt32();
+        uint32 instanceId   = fields[3].GetUInt32();
+        uint8 difficulty    = fields[4].GetUInt8();
 
+        time_t resetTime = (time_t)fields[5].GetUInt64();
 
         GameObjectData const* data = sObjectMgr.GetGOData(loguid);
         if (!data)
             continue;
 
-        MapEntry const* mapEntry = sMapStore.LookupEntry(data->mapid);
+        if (mapId != data->mapid)
+            continue;
+
+        MapEntry const* mapEntry = sMapStore.LookupEntry(mapId);
         if (!mapEntry || (mapEntry->Instanceable() != (instanceId != 0)))
             continue;
 
-        // instances loaded early and respawn data must exist only for existed instances (state loaded) or non-instanced maps
-        MapPersistentState* state = instanceId
-            ? GetPersistentState(data->mapid, instanceId)
-            : AddPersistentState(mapEntry, 0, REGULAR_DIFFICULTY, 0, false, true);
+        if(difficulty >= (!mapEntry->Instanceable() ? REGULAR_DIFFICULTY : (mapEntry->IsRaid() ? MAX_RAID_DIFFICULTY : MAX_DUNGEON_DIFFICULTY)))
+            continue;
 
+        MapPersistentState* state = AddPersistentState(mapEntry, instanceId, Difficulty(difficulty), resetTime, mapEntry->IsDungeon(), true);
         if (!state)
             continue;
 

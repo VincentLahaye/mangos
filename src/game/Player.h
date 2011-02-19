@@ -2062,10 +2062,13 @@ class MANGOS_DLL_SPEC Player : public Unit
         void UpdateArenaFields();
         void UpdateHonorFields();
         bool RewardHonor(Unit *pVictim, uint32 groupsize, float honor = -1);
-        uint32 GetHonorPoints() { return GetUInt32Value(PLAYER_FIELD_HONOR_CURRENCY); }
-        uint32 GetArenaPoints() { return GetUInt32Value(PLAYER_FIELD_ARENA_CURRENCY); }
-        void ModifyHonorPoints( int32 value );
-        void ModifyArenaPoints( int32 value );
+        uint32 GetHonorPoints() const { return GetUInt32Value(PLAYER_FIELD_HONOR_CURRENCY); }
+        uint32 GetArenaPoints() const { return GetUInt32Value(PLAYER_FIELD_ARENA_CURRENCY); }
+        void SetHonorPoints(uint32 value);
+        void SetArenaPoints(uint32 value);
+        void ModifyHonorPoints(int32 value);
+        void ModifyArenaPoints(int32 value);
+
         uint32 GetMaxPersonalArenaRatingRequirement(uint32 minarenaslot);
 
         //End of PvP System
@@ -2341,6 +2344,10 @@ class MANGOS_DLL_SPEC Player : public Unit
 
         Object* GetObjectByTypeMask(ObjectGuid guid, TypeMask typemask);
 
+ /** World of Warcraft Armory **/
+ void WriteWowArmoryDatabaseLog(uint32 type, uint32 data);
+ /** World of Warcraft Armory **/
+
         // currently visible objects at player client
         ObjectGuidSet m_clientGUIDs;
 
@@ -2472,8 +2479,8 @@ class MANGOS_DLL_SPEC Player : public Unit
         void CompletedAchievement(uint32 uiAchievementID);
         void StartTimedAchievementCriteria(AchievementCriteriaTypes type, uint32 timedRequirementId, time_t startTime = 0);
 
-        bool HasTitle(uint32 bitIndex);
-        bool HasTitle(CharTitlesEntry const* title) { return HasTitle(title->bit_index); }
+        bool HasTitle(uint32 bitIndex) const;
+        bool HasTitle(CharTitlesEntry const* title) const { return HasTitle(title->bit_index); }
         void SetTitle(CharTitlesEntry const* title, bool lost = false);
 
         bool canSeeSpellClickOn(Creature const* creature) const;
