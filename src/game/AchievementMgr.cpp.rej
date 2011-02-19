@@ -1,0 +1,18 @@
+***************
+*** 2066,2071 ****
+      if(achievement->flags & ACHIEVEMENT_FLAG_COUNTER || m_completedAchievements.find(achievement->ID)!=m_completedAchievements.end())
+          return;
+  
+      SendAchievementEarned(achievement);
+      CompletedAchievementData& ca = m_completedAchievements[achievement->ID];
+      ca.date = time(NULL);
+--- 2066,2074 ----
+      if(achievement->flags & ACHIEVEMENT_FLAG_COUNTER || m_completedAchievements.find(achievement->ID)!=m_completedAchievements.end())
+          return;
+  
++  /** World of Warcraft Armory **/
++  GetPlayer()->WriteWowArmoryDatabaseLog(1, achievement->ID);
++  /** World of Warcraft Armory **/
+      SendAchievementEarned(achievement);
+      CompletedAchievementData& ca = m_completedAchievements[achievement->ID];
+      ca.date = time(NULL);

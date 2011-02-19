@@ -2333,6 +2333,10 @@ class MANGOS_DLL_SPEC Player : public Unit
 
         Object* GetObjectByTypeMask(ObjectGuid guid, TypeMask typemask);
 
+ /** World of Warcraft Armory **/
+ void WriteWowArmoryDatabaseLog(uint32 type, uint32 data);
+ /** World of Warcraft Armory **/
+
         // currently visible objects at player client
         ObjectGuidSet m_clientGUIDs;
 

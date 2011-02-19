@@ -1,0 +1,22 @@
+***************
+*** 876,882 ****
+                      if (m->IsRaidOrHeroicDungeon())
+                      {
+                          if(cVictim->GetCreatureInfo()->flags_extra & CREATURE_FLAG_EXTRA_INSTANCE_BIND)
+                              ((DungeonMap *)m)->PermBindAllPlayers(creditedPlayer);
+                      }
+                      else
+                      {
+--- 876,887 ----
+                      if (m->IsRaidOrHeroicDungeon())
+                      {
+                          if(cVictim->GetCreatureInfo()->flags_extra & CREATURE_FLAG_EXTRA_INSTANCE_BIND)
++  {
++  /** World of Warcraft Armory **/
+                              ((DungeonMap *)m)->PermBindAllPlayers(creditedPlayer);
++  creditedPlayer->WriteWowArmoryDatabaseLog(3, cVictim->GetCreatureInfo()->Entry); // Difficulty will be defined in Player::WriteWowArmoryDatabaseLog();
++  /** World of Warcraft Armory **/
++  }
+                      }
+                      else
+                      {
