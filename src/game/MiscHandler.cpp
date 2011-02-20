@@ -249,7 +249,7 @@ void WorldSession::HandleWhoOpcode( WorldPacket & recv_data )
             break;
     }
 
-	if (sWorld.getConfig(CONFIG_BOOL_FAKE_WHO_LIST) && clientcount < 49)
+	if (clientcount < 49)
     {
         // Fake players on WHO LIST                            0,   1,    2,   3,    4,   5     6
         QueryResult *result = CharacterDatabase.Query("SELECT guid,name,race,class,level,zone,gender FROM characters WHERE online>1");
