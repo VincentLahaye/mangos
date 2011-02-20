@@ -28,6 +28,7 @@
 #include "Formulas.h"
 #include "ObjectAccessor.h"
 #include "BattleGround.h"
+#include "BattleGroundMgr.h"
 #include "MapManager.h"
 #include "MapPersistentStateMgr.h"
 #include "Util.h"
@@ -355,6 +356,10 @@ uint32 Group::RemoveMember(ObjectGuid guid, uint8 method)
     }
     //END Playerbot mod
 
+    // Frozen Mod
+    BroadcastGroupUpdate();
+    // Frozen Mod
+
     // remove member and change leader (if need) only if strong more 2 members _before_ member remove
     if (GetMembersCount() > uint32(isBGGroup() ? 1 : 2))    // in BG group case allow 1 members group
     {
@@ -594,7 +599,7 @@ void Group::SendLootAllPassed(Roll const& r)
     }
 }
 
-void Group::GroupLoot(Creature *creature, Loot *loot)
+void Group::GroupLoot(WorldObject* object, Loot *loot)
 {
     uint32 maxEnchantingSkill = GetMaxSkillValueForGroup(SKILL_ENCHANTING);
 
@@ -610,13 +615,13 @@ void Group::GroupLoot(Creature *creature, Loot *loot)
 
         //roll for over-threshold item if it's one-player loot
         if (itemProto->Quality >= uint32(m_lootThreshold) && !lootItem.freeforall)
-            StartLootRool(creature, GROUP_LOOT, loot, itemSlot, maxEnchantingSkill);
+            StartLootRool(object, GROUP_LOOT, loot, itemSlot, maxEnchantingSkill);
         else
             lootItem.is_underthreshold = 1;
     }
 }
 
-void Group::NeedBeforeGreed(Creature *creature, Loot *loot)
+void Group::NeedBeforeGreed(WorldObject* object, Loot *loot)
 {
     uint32 maxEnchantingSkill = GetMaxSkillValueForGroup(SKILL_ENCHANTING);
 
@@ -632,13 +637,13 @@ void Group::NeedBeforeGreed(Creature *creature, Loot *loot)
 
         //only roll for one-player items, not for ones everyone can get
         if (itemProto->Quality >= uint32(m_lootThreshold) && !lootItem.freeforall)
-            StartLootRool(creature, NEED_BEFORE_GREED, loot, itemSlot, maxEnchantingSkill);
+            StartLootRool(object, NEED_BEFORE_GREED, loot, itemSlot, maxEnchantingSkill);
         else
             lootItem.is_underthreshold = 1;
     }
 }
 
-void Group::MasterLoot(Creature *creature, Loot* loot)
+void Group::MasterLoot(WorldObject* object, Loot* loot)
 {
     for (LootItemList::iterator i=loot->items.begin(); i != loot->items.end(); ++i)
     {
@@ -660,7 +665,7 @@ void Group::MasterLoot(Creature *creature, Loot* loot)
         if (!looter->IsInWorld())
             continue;
 
-        if (looter->IsWithinDist(creature, sWorld.getConfig(CONFIG_FLOAT_GROUP_XP_DISTANCE), false))
+        if (looter->IsWithinDist(object, sWorld.getConfig(CONFIG_FLOAT_GROUP_XP_DISTANCE), false))
         {
             data << looter->GetObjectGuid();
             ++real_count;
@@ -672,7 +677,7 @@ void Group::MasterLoot(Creature *creature, Loot* loot)
     for(GroupReference *itr = GetFirstMember(); itr != NULL; itr = itr->next())
     {
         Player *looter = itr->getSource();
-        if (looter->IsWithinDist(creature, sWorld.getConfig(CONFIG_FLOAT_GROUP_XP_DISTANCE), false))
+        if (looter->IsWithinDist(object, sWorld.getConfig(CONFIG_FLOAT_GROUP_XP_DISTANCE), false))
             looter->GetSession()->SendPacket(&data);
     }
 }
@@ -752,7 +757,7 @@ bool Group::CountRollVote(ObjectGuid const& playerGUID, Rolls::iterator& rollI, 
     return false;
 }
 
-void Group::StartLootRool(Creature* lootTarget, LootMethod method, Loot* loot, uint8 itemSlot, uint32 maxEnchantingSkill)
+void Group::StartLootRool(WorldObject* lootTarget, LootMethod method, Loot* loot, uint8 itemSlot, uint32 maxEnchantingSkill)
 {
     if (itemSlot >= loot->items.size())
         return;
@@ -858,7 +863,8 @@ void Group::CountTheRoll(Rolls::iterator& rollI)
                     item->is_looted = true;
                     roll->getLoot()->NotifyItemRemoved(roll->itemSlot);
                     --roll->getLoot()->unlootedCount;
-                    player->StoreNewItem( dest, roll->itemid, true, item->randomPropertyId);
+                    AllowedLooterSet* looters = item->GetAllowedLooters();
+                    player->StoreNewItem( dest, roll->itemid, true, item->randomPropertyId, (looters->size() > 1) ? looters : NULL);
                     player->GetAchievementMgr().UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_LOOT_ITEM, roll->itemid, item->count);
                     player->GetAchievementMgr().UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_LOOT_TYPE, roll->getLoot()->loot_type, item->count);
                     player->GetAchievementMgr().UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_LOOT_EPIC_ITEM, roll->itemid, item->count);
@@ -913,7 +919,8 @@ void Group::CountTheRoll(Rolls::iterator& rollI)
                         item->is_looted = true;
                         roll->getLoot()->NotifyItemRemoved(roll->itemSlot);
                         --roll->getLoot()->unlootedCount;
-                        player->StoreNewItem( dest, roll->itemid, true, item->randomPropertyId);
+                        AllowedLooterSet* looters = item->GetAllowedLooters();
+                        player->StoreNewItem( dest, roll->itemid, true, item->randomPropertyId, (looters->size() > 1) ? looters : NULL);
                         player->GetAchievementMgr().UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_LOOT_ITEM, roll->itemid, item->count);
                         player->GetAchievementMgr().UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_LOOT_TYPE, roll->getLoot()->loot_type, item->count);
                         player->GetAchievementMgr().UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_LOOT_EPIC_ITEM, roll->itemid, item->count);
@@ -1499,7 +1506,7 @@ uint32 Group::GetMaxSkillValueForGroup( SkillType skill )
     return maxvalue;
 }
 
-void Group::UpdateLooterGuid( Creature* creature, bool ifneed )
+void Group::UpdateLooterGuid( WorldObject* object, bool ifneed )
 {
     switch (GetLootMethod())
     {
@@ -1519,7 +1526,7 @@ void Group::UpdateLooterGuid( Creature* creature, bool ifneed )
         {
             // not update if only update if need and ok
             Player* looter = ObjectAccessor::FindPlayer(guid_itr->guid);
-            if (looter && looter->IsWithinDist(creature, sWorld.getConfig(CONFIG_FLOAT_GROUP_XP_DISTANCE), false))
+            if (looter && looter->IsWithinDist(object, sWorld.getConfig(CONFIG_FLOAT_GROUP_XP_DISTANCE), false))
                 return;
         }
         ++guid_itr;
@@ -1532,16 +1539,16 @@ void Group::UpdateLooterGuid( Creature* creature, bool ifneed )
         {
             if (Player* pl = ObjectAccessor::FindPlayer(itr->guid))
             {
-                if (pl->IsWithinDist(creature, sWorld.getConfig(CONFIG_FLOAT_GROUP_XP_DISTANCE), false))
+                if (pl->IsWithinDist(object, sWorld.getConfig(CONFIG_FLOAT_GROUP_XP_DISTANCE), false))
                 {
-                    bool refresh = pl->GetLootGUID() == creature->GetGUID();
+                    bool refresh = pl->GetLootGUID() == object->GetGUID();
 
                     //if(refresh)                           // update loot for new looter
                     //    pl->GetSession()->DoLootRelease(pl->GetLootGUID());
                     SetLooterGuid(pl->GetObjectGuid());
                     SendUpdate();
-                    if (refresh)                            // update loot for new looter
-                        pl->SendLoot(creature->GetObjectGuid(), LOOT_CORPSE);
+                    if(refresh)                             // update loot for new looter
+                        pl->SendLoot(object->GetObjectGuid(), LOOT_CORPSE);
                     return;
                 }
             }
@@ -1553,16 +1560,16 @@ void Group::UpdateLooterGuid( Creature* creature, bool ifneed )
     {
         if (Player* pl = ObjectAccessor::FindPlayer(itr->guid))
         {
-            if (pl->IsWithinDist(creature, sWorld.getConfig(CONFIG_FLOAT_GROUP_XP_DISTANCE), false))
+            if (pl->IsWithinDist(object, sWorld.getConfig(CONFIG_FLOAT_GROUP_XP_DISTANCE), false))
             {
-                bool refresh = pl->GetLootGUID()==creature->GetGUID();
+                bool refresh = pl->GetLootGUID() == object->GetGUID();
 
                 //if(refresh)                               // update loot for new looter
                 //    pl->GetSession()->DoLootRelease(pl->GetLootGUID());
                 SetLooterGuid(pl->GetObjectGuid());
                 SendUpdate();
-                if (refresh)                                // update loot for new looter
-                    pl->SendLoot(creature->GetObjectGuid(), LOOT_CORPSE);
+                if(refresh)                                 // update loot for new looter
+                    pl->SendLoot(object->GetObjectGuid(), LOOT_CORPSE);
                 return;
             }
         }
@@ -1601,6 +1608,10 @@ GroupJoinBattlegroundResult Group::CanJoinBattleGroundQueue(BattleGround const* 
     uint32 arenaTeamId = reference->GetArenaTeamId(arenaSlot);
     Team team = reference->GetTeam();
 
+    uint32 allowedPlayerCount = 0;
+
+    BattleGroundQueueTypeId bgQueueTypeIdRandom = BattleGroundMgr::BGQueueTypeId(BATTLEGROUND_RB, 0);
+
     // check every member of the group to be able to join
     for(GroupReference *itr = GetFirstMember(); itr != NULL; itr = itr->next())
     {
@@ -1621,13 +1632,26 @@ GroupJoinBattlegroundResult Group::CanJoinBattleGroundQueue(BattleGround const* 
         // don't let join if someone from the group is already in that bg queue
         if(member->InBattleGroundQueueForBattleGroundQueueType(bgQueueTypeId))
             return ERR_BATTLEGROUND_JOIN_FAILED;            // not blizz-like
+        // don't let join if someone from the group is in bg queue random
+        if(member->InBattleGroundQueueForBattleGroundQueueType(bgQueueTypeIdRandom))
+            return ERR_IN_RANDOM_BG;
+        // don't let join to bg queue random if someone from the group is already in bg queue
+        if(bgOrTemplate->GetTypeID() == BATTLEGROUND_RB && member->InBattleGroundQueue())
+            return ERR_IN_NON_RANDOM_BG;
         // check for deserter debuff in case not arena queue
         if(bgOrTemplate->GetTypeID() != BATTLEGROUND_AA && !member->CanJoinToBattleground())
             return ERR_GROUP_JOIN_BATTLEGROUND_DESERTERS;
         // check if member can join any more battleground queues
         if(!member->HasFreeBattleGroundQueueId())
             return ERR_BATTLEGROUND_TOO_MANY_QUEUES;        // not blizz-like
+
+        ++allowedPlayerCount;
     }
+
+    if(bgOrTemplate->GetTypeID() == BATTLEGROUND_AA)
+        if(allowedPlayerCount < MinPlayerCount || allowedPlayerCount > MaxPlayerCount)
+            return ERR_ARENA_TEAM_PARTY_SIZE;
+
     return GroupJoinBattlegroundResult(bgOrTemplate->GetTypeID());
 }
 
@@ -1834,6 +1858,44 @@ void Group::_homebindIfInstance(Player *player)
         }
     }
 }
+//Frozen Mod
+void Group::BroadcastGroupUpdate(void)
+{
+    for(member_citerator citr = m_memberSlots.begin(); citr != m_memberSlots.end(); ++citr)
+    {
+        Player *pp = sObjectMgr.GetPlayer(citr->guid);
+        if(pp && pp->IsInWorld())
+        {
+            pp->ForceValuesUpdateAtIndex(UNIT_FIELD_BYTES_2);
+            pp->ForceValuesUpdateAtIndex(UNIT_FIELD_FACTIONTEMPLATE);
+            DEBUG_LOG("-- Forced group value update for '%s'", pp->GetName());
+            if(pp->GetPet())
+            {
+                GroupPetList m_groupPets = pp->GetPets();
+                if  (!m_groupPets.empty())
+                {
+                     for (GroupPetList::const_iterator itr = m_groupPets.begin(); itr != m_groupPets.end(); ++itr)
+                         if (Pet* _pet = pp->GetMap()->GetPet(*itr))
+                         {
+                             _pet->ForceValuesUpdateAtIndex(UNIT_FIELD_BYTES_2);
+                             _pet->ForceValuesUpdateAtIndex(UNIT_FIELD_FACTIONTEMPLATE);
+                         }
+                }
+                DEBUG_LOG("-- Forced group value update for '%s' pet '%s'", pp->GetName(), pp->GetPet()->GetName());
+            }
+            for(uint32 i = 0; i < MAX_TOTEM_SLOT; ++i)
+            {
+                if(Unit *totem = pp->GetMap()->GetUnit(pp->GetTotemGUID(TotemSlot(i))))
+                {
+                    totem->ForceValuesUpdateAtIndex(UNIT_FIELD_BYTES_2);
+                    totem->ForceValuesUpdateAtIndex(UNIT_FIELD_FACTIONTEMPLATE);
+                    DEBUG_LOG("-- Forced group value update for '%s' totem #%u", pp->GetName(), i);
+                }
+            }
+        }
+    }
+}
+// Frozen Mod
 
 static void RewardGroupAtKill_helper(Player* pGroupGuy, Unit* pVictim, uint32 count, bool PvP, float group_rate, uint32 sum_level, bool is_dungeon, Player* not_gray_member_with_max_level, Player* member_with_max_level, uint32 xp )
 {

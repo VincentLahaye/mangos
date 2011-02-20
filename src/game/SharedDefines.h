@@ -155,6 +155,17 @@ enum Powers
 
 #define MAX_POWERS                        7
 
+enum EnergyType
+{
+    ENERGY_TYPE_UNK0      = 0,                          // Possible mana or flat energy.
+    ENERGY_TYPE_UNK1      = 1,                          // 2 vehicles in 3.3.5a
+    ENERGY_TYPE_PYRITE    = 41,                         // 2 vehicles in 3.3.5a
+    ENERGY_TYPE_STEAM     = 61,                         // 9 vehicles in 3.3.5a
+    ENERGY_TYPE_OOZE      = 121,                        // 1 vehicle  in 3.3.5a
+    ENERGY_TYPE_BLOOD     = 141,                        // 1 vehicle  in 3.3.5a
+    ENERGY_TYPE_UNK142    = 142,                        // 1 vehicle  in 3.3.5a
+};
+
 enum SpellSchools
 {
     SPELL_SCHOOL_NORMAL                 = 0,
@@ -314,7 +325,7 @@ const uint32 ItemQualityColors[MAX_ITEM_QUALITY] = {
 #define SPELL_ATTR_EX2_UNK14                      0x00004000            // 14
 #define SPELL_ATTR_EX2_UNK15                      0x00008000            // 15 not set in 3.0.3
 #define SPELL_ATTR_EX2_UNK16                      0x00010000            // 16
-#define SPELL_ATTR_EX2_UNK17                      0x00020000            // 17 suspend weapon timer instead of resetting it, (?Hunters Shot and Stings only have this flag?)
+#define SPELL_ATTR_EX2_NOT_RESET_AUTOSHOT         0x00020000            // 17 Hunters Shot and Stings only have this flag
 #define SPELL_ATTR_EX2_UNK18                      0x00040000            // 18 Only Revive pet - possible req dead pet
 #define SPELL_ATTR_EX2_NOT_NEED_SHAPESHIFT        0x00080000            // 19 does not necessarly need shapeshift
 #define SPELL_ATTR_EX2_UNK20                      0x00100000            // 20
@@ -409,7 +420,7 @@ const uint32 ItemQualityColors[MAX_ITEM_QUALITY] = {
 #define SPELL_ATTR_EX5_UNK10                      0x00000400            // 10
 #define SPELL_ATTR_EX5_UNK11                      0x00000800            // 11
 #define SPELL_ATTR_EX5_UNK12                      0x00001000            // 12
-#define SPELL_ATTR_EX5_UNK13                      0x00002000            // 13 haste affects duration (e.g. 8050 since 3.3.3)
+#define SPELL_ATTR_EX5_AFFECTED_BY_HASTE          0x00002000            // 13 haste affects duration (e.g. 8050 since 3.3.3)
 #define SPELL_ATTR_EX5_UNK14                      0x00004000            // 14
 #define SPELL_ATTR_EX5_UNK15                      0x00008000            // 15
 #define SPELL_ATTR_EX5_UNK16                      0x00010000            // 16
@@ -437,7 +448,7 @@ const uint32 ItemQualityColors[MAX_ITEM_QUALITY] = {
 #define SPELL_ATTR_EX6_UNK5                       0x00000020            // 5
 #define SPELL_ATTR_EX6_UNK6                       0x00000040            // 6
 #define SPELL_ATTR_EX6_UNK7                       0x00000080            // 7
-#define SPELL_ATTR_EX6_UNK8                       0x00000100            // 8
+#define SPELL_ATTR_EX6_IGNORE_CCED_TARGETS        0x00000100            // 8
 #define SPELL_ATTR_EX6_UNK9                       0x00000200            // 9
 #define SPELL_ATTR_EX6_UNK10                      0x00000400            // 10
 #define SPELL_ATTR_EX6_NOT_IN_RAID_INSTANCE       0x00000800            // 11 not usable in raid instance
@@ -721,9 +732,9 @@ enum SpellEffects
     SPELL_EFFECT_QUEST_FAIL                = 147,
     SPELL_EFFECT_148                       = 148,
     SPELL_EFFECT_CHARGE2                   = 149,
-    SPELL_EFFECT_150                       = 150,
+    SPELL_EFFECT_QUEST_START               = 150,
     SPELL_EFFECT_TRIGGER_SPELL_2           = 151,
-    SPELL_EFFECT_152                       = 152,
+    SPELL_EFFECT_FRIEND_SUMMON             = 152,
     SPELL_EFFECT_CREATE_PET                = 153,
     SPELL_EFFECT_TEACH_TAXI_NODE           = 154,
     SPELL_EFFECT_TITAN_GRIP                = 155,
@@ -735,7 +746,7 @@ enum SpellEffects
     SPELL_EFFECT_TALENT_SPEC_COUNT         = 161,
     SPELL_EFFECT_TALENT_SPEC_SELECT        = 162,
     SPELL_EFFECT_163                       = 163,
-    SPELL_EFFECT_164                       = 164,
+    SPELL_EFFECT_REMOVE_AURA               = 164,
     TOTAL_SPELL_EFFECTS                    = 165
 };
 
@@ -975,7 +986,7 @@ enum Mechanics
     MECHANIC_FEAR             = 5,
     MECHANIC_GRIP             = 6,
     MECHANIC_ROOT             = 7,
-    MECHANIC_PACIFY           = 8,                          //0 spells use this mechanic
+    MECHANIC_SLOWATTACK       = 8,                          //0 spells use this mechanic, but some SPELL_AURA_MOD_HASTE and SPELL_AURA_MOD_RANGED_HASTE use as effect mechanic 
     MECHANIC_SILENCE          = 9,
     MECHANIC_SLEEP            = 10,
     MECHANIC_SNARE            = 11,
@@ -1004,7 +1015,7 @@ enum Mechanics
 // Used for spell 42292 Immune Movement Impairment and Loss of Control (0x49967da6)
 #define IMMUNE_TO_MOVEMENT_IMPAIRMENT_AND_LOSS_CONTROL_MASK ( \
     (1<<(MECHANIC_CHARM   -1))|(1<<(MECHANIC_DISORIENTED-1))|(1<<(MECHANIC_FEAR  -1))| \
-    (1<<(MECHANIC_ROOT    -1))|(1<<(MECHANIC_PACIFY     -1))|(1<<(MECHANIC_SLEEP -1))| \
+    (1<<(MECHANIC_ROOT    -1))|(1<<(MECHANIC_SLOWATTACK -1))|(1<<(MECHANIC_SLEEP -1))| \
     (1<<(MECHANIC_SNARE   -1))|(1<<(MECHANIC_STUN       -1))|(1<<(MECHANIC_FREEZE-1))| \
     (1<<(MECHANIC_KNOCKOUT-1))|(1<<(MECHANIC_POLYMORPH  -1))|(1<<(MECHANIC_BANISH-1))| \
     (1<<(MECHANIC_SHACKLE -1))|(1<<(MECHANIC_TURN       -1))|(1<<(MECHANIC_HORROR-1))| \
@@ -1024,10 +1035,10 @@ enum Mechanics
 
 // Daze and all croud control spells except polymorph are not removed
 #define MECHANIC_NOT_REMOVED_BY_SHAPESHIFT ( \
-    (1<<(MECHANIC_CHARM -1))|(1<<(MECHANIC_DISORIENTED-1))|(1<<(MECHANIC_FEAR  -1))| \
-    (1<<(MECHANIC_PACIFY-1))|(1<<(MECHANIC_STUN       -1))|(1<<(MECHANIC_FREEZE-1))| \
-    (1<<(MECHANIC_BANISH-1))|(1<<(MECHANIC_SHACKLE    -1))|(1<<(MECHANIC_HORROR-1))| \
-    (1<<(MECHANIC_TURN  -1))|(1<<(MECHANIC_DAZE       -1))|(1<<(MECHANIC_SAPPED-1)))
+    (1<<(MECHANIC_CHARM  -1))|(1<<(MECHANIC_DISORIENTED-1))|(1<<(MECHANIC_FEAR  -1))| \
+    (1<<(MECHANIC_STUN   -1))|(1<<(MECHANIC_FREEZE     -1))|(1<<(MECHANIC_BANISH-1))| \
+    (1<<(MECHANIC_SHACKLE-1))|(1<<(MECHANIC_HORROR     -1))|(1<<(MECHANIC_TURN  -1))| \
+    (1<<(MECHANIC_DAZE   -1))|(1<<(MECHANIC_SAPPED     -1)))
 
 // Spell dispell type
 enum DispelType
@@ -1118,6 +1129,7 @@ enum Targets
     TARGET_DYNAMIC_OBJECT_BEHIND       = 48,
     TARGET_DYNAMIC_OBJECT_LEFT_SIDE    = 49,
     TARGET_DYNAMIC_OBJECT_RIGHT_SIDE   = 50,
+    TARGET_OBJECT_AREA_SRC             = 51,
     TARGET_AREAEFFECT_GO_AROUND_DEST   = 52,                // gameobject around destination, select by spell_script_target
     TARGET_CURRENT_ENEMY_COORDINATES   = 53,                // set unit coordinates as dest, only 16 target B imlemented
     TARGET_LARGE_FRONTAL_CONE          = 54,
@@ -1146,6 +1158,16 @@ enum Targets
     TARGET_SELF2                       = 87,
     TARGET_DIRECTLY_FORWARD            = 89,
     TARGET_NONCOMBAT_PET               = 90,
+    TARGET_OWNED_VEHICLE               = 94,
+    TARGET_UNIT_DRIVER                 = 95,
+    TARGET_UNIT_PASSENGER_0            = 96,
+    TARGET_UNIT_PASSENGER_1            = 97,
+    TARGET_UNIT_PASSENGER_2            = 98,
+    TARGET_UNIT_PASSENGER_3            = 99,
+    TARGET_UNIT_PASSENGER_4            = 100,
+    TARGET_UNIT_PASSENGER_5            = 101,
+    TARGET_UNIT_PASSENGER_6            = 102,
+    TARGET_UNIT_PASSENGER_7            = 103,
     TARGET_IN_FRONT_OF_CASTER_30       = 104,
 };
 
@@ -1262,8 +1284,8 @@ enum GameObjectFlags
     GO_FLAG_TRIGGERED       = 0x00000040,                   //typically, summoned objects. Triggered by spell or other events
     GO_FLAG_UNK_8           = 0x00000080,
     GO_FLAG_UNK_9           = 0x00000100,                   //? Seen on type 33, possible meaning "destruct in progress"
-    GO_FLAG_UNK_10          = 0x00000200,                   //? Seen on type 33
-    GO_FLAG_UNK_11          = 0x00000400                    //? Seen on type 33, possibly meaning "destructed"
+    GO_FLAG_DAMAGED         = 0x00000200,                   //Seen on type 33
+    GO_FLAG_DESTROYED       = 0x00000400                    //Seen on type 33, meaning "destroyed"
 };
 
 enum GameObjectDynamicLowFlags
@@ -2517,6 +2539,8 @@ enum DiminishingGroup
     DIMINISHING_SILENCE,                                    // From 2.3.0
     DIMINISHING_FREEZE_SLEEP,                               // Hunter's Freezing Trap
     DIMINISHING_BANISH,
+    // Warrior Specific
+    DIMINISHING_CHARGE,
     // Other
     // Don't Diminish, but limit duration to 10s
     DIMINISHING_LIMITONLY
@@ -2749,6 +2773,44 @@ enum MailResponseResult
     MAIL_ERR_ITEM_HAS_EXPIRED          = 21,
 };
 
+enum CalendarResponseResult
+{
+    CALENDAR_ERROR_GUILD_EVENTS_EXCEEDED        = 1,
+    CALENDAR_ERROR_EVENTS_EXCEEDED              = 2,        // max of 20 (?) exceeded
+    CALENDAR_ERROR_SELF_INVITES_EXCEEDED        = 3,
+    CALENDAR_ERROR_OTHER_INVITES_EXCEEDED       = 4,        // std::string
+    CALENDAR_ERROR_PERMISSIONS                  = 5,
+    CALENDAR_ERROR_EVENT_INVALID                = 6,        // Event not found.
+    CALENDAR_ERROR_NOT_INVITED                  = 7,
+    CALENDAR_ERROR_INTERNAL                     = 8,
+    CALENDAR_ERROR_GUILD_PLAYER_NOT_IN_GUILD    = 9,
+    CALENDAR_ERROR_ALREADY_INVITED_TO_EVENT_S   = 10,       // std::string
+    CALENDAR_ERROR_PLAYER_NOT_FOUND             = 11,
+    CALENDAR_ERROR_NOT_ALLIED                   = 12,
+    CALENDAR_ERROR_IGNORING_YOU_S               = 13,       // std::string
+    CALENDAR_ERROR_INVITES_EXCEEDED             = 14,
+    // 15 ?
+    CALENDAR_ERROR_INVALID_DATE                 = 16,
+    CALENDAR_ERROR_INVALID_TIME                 = 17,
+    // 18 ?
+    CALENDAR_ERROR_NEEDS_TITLE                  = 19,
+    CALENDAR_ERROR_EVENT_PASSED                 = 20,
+    CALENDAR_ERROR_EVENT_LOCKED                 = 21,
+    CALENDAR_ERROR_DELETE_CREATOR_FAILED        = 22,
+    CALENDAR_ERROR_SYSTEM_DISABLED              = 24,
+    CALENDAR_ERROR_RESTRICTED_ACCOUNT           = 25,
+    CALENDAR_ERROR_ARENA_EVENTS_EXCEEDED        = 26,
+    CALENDAR_ERROR_RESTRICTED_LEVEL             = 27,
+    CALENDAR_ERROR_USER_SQUELCHED               = 28,
+    CALENDAR_ERROR_NO_INVITE                    = 29,
+    // 30-35 ?
+    CALENDAR_ERROR_EVENT_WRONG_SERVER           = 36,
+    CALENDAR_ERROR_INVITE_WRONG_SERVER          = 37,
+    CALENDAR_ERROR_NO_GUILD_INVITES             = 38,
+    CALENDAR_ERROR_INVALID_SIGNUP               = 39,
+    CALENDAR_ERROR_NO_MODERATOR                 = 40,
+};
+
 // reasons for why pet tame may fail
 // in fact, these are also used elsewhere
 enum PetTameFailureReason
@@ -2805,7 +2867,8 @@ enum TradeStatus
     TRADE_STATUS_YOU_LOGOUT     = 19,
     TRADE_STATUS_TARGET_LOGOUT  = 20,
     TRADE_STATUS_TRIAL_ACCOUNT  = 21,                       // Trial accounts can not perform that action
-    TRADE_STATUS_ONLY_CONJURED  = 22                        // You can only trade conjured items... (cross realm BG related).
+    TRADE_STATUS_ONLY_CONJURED  = 22,                       // You can only trade conjured items... (cross realm BG related).
+    TRADE_STATUS_NOT_ELIGIBLE   = 23                        // Related to trading soulbound loot items
 };
 
 // we need to stick to 1 version or half of the stuff will work for someone

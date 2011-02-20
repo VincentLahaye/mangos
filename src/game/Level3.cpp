@@ -169,6 +169,7 @@ bool ChatHandler::HandleReloadAllSpellCommand(char* /*args*/)
     HandleReloadSpellTargetPositionCommand((char*)"a");
     HandleReloadSpellThreatsCommand((char*)"a");
     HandleReloadSpellPetAurasCommand((char*)"a");
+    HandleReloadSpellDisabledCommand((char*)"a");
     return true;
 }
 
@@ -931,6 +932,28 @@ bool ChatHandler::HandleReloadMailLevelRewardCommand(char* /*args*/)
     sLog.outString( "Re-Loading Player level dependent mail rewards..." );
     sObjectMgr.LoadMailLevelRewards();
     SendGlobalSysMessage("DB table `mail_level_reward` reloaded.");
+    return true;
+}
+
+bool ChatHandler::HandleReloadSpellDisabledCommand(char* /*arg*/)
+{
+    sLog.outString( "Re-Loading spell disabled table...");
+
+    sObjectMgr.LoadSpellDisabledEntrys();
+
+    SendGlobalSysMessage("DB table `spell_disabled` reloaded.");
+
+    return true;
+}
+
+bool ChatHandler::HandleReloadAntiCheatCommand(char* /*arg*/)
+{
+    sLog.outString( "Re-Loading anticheat config table...");
+
+    sObjectMgr.LoadAntiCheatConfig();
+
+    SendGlobalSysMessage("Anticheat config reloaded.");
+
     return true;
 }
 
@@ -4091,6 +4114,10 @@ bool ChatHandler::HandleNpcInfoCommand(char* /*args*/)
     std::string defRespawnDelayStr = secsToTimeString(target->GetRespawnDelay(),true);
 
     PSendSysMessage(LANG_NPCINFO_CHAR,  target->GetGUIDLow(), faction, npcflags, Entry, displayid, nativeid);
+
+    if (cInfo->VehicleId)
+        PSendSysMessage("VehicleId: %u", cInfo->VehicleId);
+
     PSendSysMessage(LANG_NPCINFO_LEVEL, target->getLevel());
     PSendSysMessage(LANG_NPCINFO_HEALTH,target->GetCreateHealth(), target->GetMaxHealth(), target->GetHealth());
     PSendSysMessage(LANG_NPCINFO_FLAGS, target->GetUInt32Value(UNIT_FIELD_FLAGS), target->GetUInt32Value(UNIT_DYNAMIC_FLAGS), target->getFaction());
@@ -4322,6 +4349,9 @@ bool ChatHandler::HandleCharacterLevelCommand(char* args)
     if (newlevel > STRONG_MAX_LEVEL)                        // hardcoded maximum level
         newlevel = STRONG_MAX_LEVEL;
 
+    if (newlevel > sWorld.getConfig(CONFIG_UINT32_MAX_PLAYER_LEVEL))
+        newlevel = sWorld.getConfig(CONFIG_UINT32_MAX_PLAYER_LEVEL);
+
     HandleCharacterLevel(target, target_guid, oldlevel, newlevel);
 
     if (!m_session || m_session->GetPlayer() != target)     // including player==NULL
@@ -4366,6 +4396,9 @@ bool ChatHandler::HandleLevelUpCommand(char* args)
 
     if (newlevel > STRONG_MAX_LEVEL)                        // hardcoded maximum level
         newlevel = STRONG_MAX_LEVEL;
+
+    if (newlevel > sWorld.getConfig(CONFIG_UINT32_MAX_PLAYER_LEVEL))
+        newlevel = sWorld.getConfig(CONFIG_UINT32_MAX_PLAYER_LEVEL);
 
     HandleCharacterLevel(target, target_guid, oldlevel, newlevel);
 
@@ -4724,9 +4757,9 @@ bool ChatHandler::HandleResetHonorCommand(char* args)
     if (!ExtractPlayerTarget(&args, &target))
         return false;
 
+    target->SetHonorPoints(0);
     target->SetUInt32Value(PLAYER_FIELD_KILLS, 0);
     target->SetUInt32Value(PLAYER_FIELD_LIFETIME_HONORBALE_KILLS, 0);
-    target->SetUInt32Value(PLAYER_FIELD_HONOR_CURRENCY, 0);
     target->SetUInt32Value(PLAYER_FIELD_TODAY_CONTRIBUTION, 0);
     target->SetUInt32Value(PLAYER_FIELD_YESTERDAY_CONTRIBUTION, 0);
     target->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_EARN_HONORABLE_KILL);
@@ -6853,3 +6886,74 @@ bool ChatHandler::HandleModifyGenderCommand(char *args)
 
     return true;
 }
+
+// Set friends for account
+bool ChatHandler::HandleAccountFriendAddCommand(char* args)
+{
+    ///- Get the command line arguments
+    std::string account_name;
+    uint32 targetAccountId = ExtractAccountId(&args, &account_name);
+
+    if (!targetAccountId)
+        return false;
+
+    std::string account_friend_name;
+    uint32 friendAccountId = ExtractAccountId(&args, &account_friend_name);
+
+    if (!friendAccountId)
+        return false;
+
+    AccountOpResult result = sAccountMgr.AddRAFLink(targetAccountId, friendAccountId);
+
+    switch(result)
+    {
+        case AOR_OK:
+            SendSysMessage(LANG_COMMAND_FRIEND);
+            break;
+        default:
+            SendSysMessage(LANG_COMMAND_FRIEND_ERROR);
+            SetSentErrorMessage(true);
+            return false;
+    }
+
+    return true;
+}
+
+// Delete friends for account
+bool ChatHandler::HandleAccountFriendDeleteCommand(char* args)
+{
+    ///- Get the command line arguments
+    std::string account_name;
+    uint32 targetAccountId = ExtractAccountId(&args, &account_name);
+
+    if (!targetAccountId)
+        return false;
+
+    std::string account_friend_name;
+    uint32 friendAccountId = ExtractAccountId(&args, &account_friend_name);
+
+    if (!friendAccountId)
+        return false;
+
+    AccountOpResult result = sAccountMgr.DeleteRAFLink(targetAccountId, friendAccountId);
+
+    switch(result)
+    {
+        case AOR_OK:
+            SendSysMessage(LANG_COMMAND_FRIEND);
+            break;
+        default:
+            SendSysMessage(LANG_COMMAND_FRIEND_ERROR);
+            SetSentErrorMessage(true);
+            return false;
+    }
+
+    return true;
+}
+
+// List friends for account
+bool ChatHandler::HandleAccountFriendListCommand(char* args)
+{
+    return false;
+}
+

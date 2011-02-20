@@ -223,7 +223,6 @@ class MANGOS_DLL_SPEC Map : public GridRefManager<NGridType>
 
         Player* GetPlayer(ObjectGuid guid);
         Creature* GetCreature(ObjectGuid guid);
-        Vehicle* GetVehicle(ObjectGuid guid);
         Pet* GetPet(ObjectGuid guid);
         Creature* GetAnyTypeCreature(ObjectGuid guid);      // normal creature or pet or vehicle
         GameObject* GetGameObject(ObjectGuid guid);
@@ -236,12 +235,12 @@ class MANGOS_DLL_SPEC Map : public GridRefManager<NGridType>
 
         void AddUpdateObject(Object *obj)
         {
-            i_objectsToClientUpdate.insert(obj);
+            i_objectsToClientUpdateQueue.push(obj);
         }
 
         void RemoveUpdateObject(Object *obj)
         {
-            i_objectsToClientUpdate.erase( obj );
+            i_objectsToClientNotUpdate.insert(obj);
         }
 
         // DynObjects currently
@@ -292,6 +291,9 @@ class MANGOS_DLL_SPEC Map : public GridRefManager<NGridType>
 
         void SendObjectUpdates();
         std::set<Object *> i_objectsToClientUpdate;
+        std::set<Object *> i_objectsToClientNotUpdate;
+        std::queue<Object*> i_objectsToClientUpdateQueue;
+
     protected:
 
         MapEntry const* i_mapEntry;
@@ -331,7 +333,6 @@ class MANGOS_DLL_SPEC Map : public GridRefManager<NGridType>
         ObjectGuidGenerator<HIGHGUID_GAMEOBJECT> m_GameObjectGuids;
         ObjectGuidGenerator<HIGHGUID_DYNAMICOBJECT> m_DynObjectGuids;
         ObjectGuidGenerator<HIGHGUID_PET> m_PetGuids;
-        ObjectGuidGenerator<HIGHGUID_VEHICLE> m_VehicleGuids;
 
         // Type specific code for add/remove to/from grid
         template<class T>
@@ -423,4 +424,5 @@ Map::Visit(const Cell& cell, TypeContainerVisitor<T, CONTAINER> &visitor)
         getNGrid(x, y)->Visit(cell_x, cell_y, visitor);
     }
 }
+
 #endif

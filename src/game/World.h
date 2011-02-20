@@ -82,7 +82,8 @@ enum WorldTimers
     WUPDATE_CORPSES     = 5,
     WUPDATE_EVENTS      = 6,
     WUPDATE_DELETECHARS = 7,
-    WUPDATE_COUNT       = 8
+    WUPDATE_AUTOBROADCAST = 8,
+    WUPDATE_COUNT       = 9
 };
 
 /// Configuration elements
@@ -188,6 +189,13 @@ enum eConfigUInt32Values
     CONFIG_UINT32_CHARDELETE_KEEP_DAYS,
     CONFIG_UINT32_CHARDELETE_METHOD,
     CONFIG_UINT32_CHARDELETE_MIN_LEVEL,
+    CONFIG_UINT32_ANTICHEAT_GMLEVEL,
+    CONFIG_UINT32_ANTICHEAT_ACTION_DELAY,
+    CONFIG_UINT32_NUMTHREADS,
+    CONFIG_UINT32_RANDOM_BG_RESET_HOUR,
+    CONFIG_UINT32_RAF_MAXGRANTLEVEL,
+    CONFIG_UINT32_RAF_MAXREFERALS,
+    CONFIG_UINT32_RAF_MAXREFERERS,
     CONFIG_UINT32_VALUE_COUNT
 };
 
@@ -224,6 +232,8 @@ enum eConfigFloatValues
     CONFIG_FLOAT_RATE_XP_KILL,
     CONFIG_FLOAT_RATE_XP_QUEST,
     CONFIG_FLOAT_RATE_XP_EXPLORE,
+    CONFIG_FLOAT_RATE_RAF_XP,
+    CONFIG_FLOAT_RATE_RAF_LEVELPERLEVEL,
     CONFIG_FLOAT_RATE_REPUTATION_GAIN,
     CONFIG_FLOAT_RATE_REPUTATION_LOWLEVEL_KILL,
     CONFIG_FLOAT_RATE_REPUTATION_LOWLEVEL_QUEST,
@@ -329,7 +339,11 @@ enum eConfigBoolValues
     CONFIG_BOOL_STATS_SAVE_ONLY_ON_LOGOUT,
     CONFIG_BOOL_CLEAN_CHARACTER_DB,
     CONFIG_BOOL_VMAP_INDOOR_CHECK,
+    CONFIG_BOOL_LOOT_CHESTS_IGNORE_DB,
     CONFIG_BOOL_PET_UNSUMMON_AT_MOUNT,
+    CONFIG_BOOL_ANTICHEAT_ENABLE,
+    CONFIG_BOOL_ALLOW_FLIGHT_ON_OLD_MAPS,
+    CONFIG_BOOL_ARMORY_SUPPORT,
     CONFIG_BOOL_VALUE_COUNT
 };
 
@@ -438,6 +452,7 @@ class World
 
         WorldSession* FindSession(uint32 id) const;
         void AddSession(WorldSession *s);
+        void SendBroadcast();
         bool RemoveSession(uint32 id);
         /// Get the number of current active sessions
         void UpdateMaxSessionCounters();
@@ -491,6 +506,7 @@ class World
         /// Next daily quests reset time
         time_t GetNextDailyQuestsResetTime() const { return m_NextDailyQuestReset; }
         time_t GetNextWeeklyQuestsResetTime() const { return m_NextWeeklyQuestReset; }
+        time_t GetNextRandomBGResetTime() const { return m_NextRandomBGReset; }
 
         /// Get the maximum skill level a player can reach
         uint16 GetConfigMaxSkillValue() const
@@ -503,8 +519,9 @@ class World
         void LoadConfigSettings(bool reload = false);
 
         void SendWorldText(int32 string_id, ...);
+        void SendWorldTextWithSecurity(AccountTypes security, int32 string_id, ...);
         void SendGlobalText(const char* text, WorldSession *self);
-        void SendGlobalMessage(WorldPacket *packet, WorldSession *self = 0, uint32 team = 0);
+        void SendGlobalMessage(WorldPacket *packet, WorldSession *self = 0, uint32 team = 0, AccountTypes security = SEC_PLAYER);
         void SendZoneMessage(uint32 zone, WorldPacket *packet, WorldSession *self = 0, uint32 team = 0);
         void SendZoneText(uint32 zone, const char *text, WorldSession *self = 0, uint32 team = 0);
         void SendServerMessage(ServerMessageType type, const char *text = "", Player* player = NULL);
@@ -587,10 +604,14 @@ class World
 
         void InitDailyQuestResetTime();
         void InitWeeklyQuestResetTime();
+
         void SetMonthlyQuestResetTime(bool initialize = true);
         void ResetDailyQuests();
         void ResetWeeklyQuests();
         void ResetMonthlyQuests();
+
+        void InitRandomBGResetTime();
+        void ResetRandomBG();
 
     private:
         void setConfig(eConfigUInt32Values index, char const* fieldname, uint32 defvalue);
@@ -661,6 +682,8 @@ class World
         time_t m_NextDailyQuestReset;
         time_t m_NextWeeklyQuestReset;
         time_t m_NextMonthlyQuestReset;
+
+        time_t m_NextRandomBGReset;
 
         //Player Queue
         Queue m_QueuedSessions;

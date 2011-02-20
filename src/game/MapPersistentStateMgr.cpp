@@ -160,6 +160,17 @@ void MapPersistentState::RemoveGameobjectFromGrid( uint32 guid, GameObjectData c
     m_gridObjectGuids[cell_id].gameobjects.erase(guid);
 }
 
+void MapPersistentState::InitPools()
+{
+    // pool system initialized already for persistent state (can be shared by map states)
+    if (!GetSpawnedPoolData().IsInitialized())
+    {
+        GetSpawnedPoolData().SetInitialized();
+        sPoolMgr.Initialize(this);                          // init pool system data for map persistent state
+        sGameEventMgr.Initialize(this);                     // init pool system data for map persistent state
+    }
+}
+
 //== WorldPersistentState functions ========================
 SpawnedPoolData WorldPersistentState::m_sharedSpawnedPoolData;
 
@@ -167,7 +178,10 @@ bool WorldPersistentState::CanBeUnload() const
 {
     // prevent unload if used for loaded map
     // prevent unload if respawn data still exist (will not prevent reset by scheduler)
-    return MapPersistentState::CanBeUnload() && !HasRespawnTimes();
+    // Note: non instanceable Map never unload until server shutdown and in result for loaded non-instanceable maps map persistent states also not unloaded
+    //       but for proper work pool systems with shared pools state for non-instanceable maps need
+    //       load persistent map states for any non-instanceable maps before Map loading and make sure that it never unloaded
+    return /*MapPersistentState::CanBeUnload() && !HasRespawnTimes()*/ false;
 }
 
 //== DungeonPersistentState functions =====================
@@ -284,6 +298,7 @@ void DungeonResetScheduler::LoadResetTimes()
 {
     time_t now = time(NULL);
     time_t today = (now / DAY) * DAY;
+    time_t oldest_reset_time = now;
 
     // NOTE: Use DirectPExecute for tables that will be queried later
 
@@ -357,7 +372,9 @@ void DungeonResetScheduler::LoadResetTimes()
             }
 
             // update the reset time if the hour in the configs changes
-            uint64 newresettime = (oldresettime / DAY) * DAY + diff;
+            time_t offset = sMapStore.LookupEntry(mapid)->instanceResetOffset;
+            uint64 start_point = INSTANCE_RESET_SCHEDULE_START_TIME + offset + diff;
+            uint64 newresettime = start_point + uint32((oldresettime - start_point) / DAY) * DAY;
             if(oldresettime != newresettime)
                 CharacterDatabase.DirectPExecute("UPDATE instance_reset SET resettime = '"UI64FMTD"' WHERE mapid = '%u' AND difficulty = '%u'", newresettime, mapid, difficulty);
 
@@ -385,20 +402,17 @@ void DungeonResetScheduler::LoadResetTimes()
 
         uint32 period = GetMaxResetTimeFor(mapDiff);
         time_t t = GetResetTimeFor(mapid,difficulty);
-        if(!t)
+        if(!t || t < now)
         {
-            // initialize the reset time
-            t = today + period + diff;
-            CharacterDatabase.DirectPExecute("INSERT INTO instance_reset VALUES ('%u','%u','"UI64FMTD"')", mapid, difficulty, (uint64)t);
-        }
+            bool existsInDB = bool(t);
+            uint32 offset = sMapStore.LookupEntry(mapid)->instanceResetOffset;
+            uint64 start_point = INSTANCE_RESET_SCHEDULE_START_TIME + offset + diff;
+            t = start_point + uint32(ceil(float(now - start_point) / period) * period);
 
-        if(t < now)
-        {
-            // assume that expired instances have already been cleaned
-            // calculate the next reset time
-            t = (t / DAY) * DAY;
-            t += ((today - t) / period + 1) * period + diff;
-            CharacterDatabase.DirectPExecute("UPDATE instance_reset SET resettime = '"UI64FMTD"' WHERE mapid = '%u' AND difficulty= '%u'", (uint64)t, mapid, difficulty);
+            if(existsInDB)
+                CharacterDatabase.DirectPExecute("UPDATE instance_reset SET resettime = '"UI64FMTD"' WHERE mapid = '%u' AND difficulty= '%u'", (uint64)t, mapid, difficulty);
+            else
+                CharacterDatabase.DirectPExecute("INSERT INTO instance_reset VALUES ('%u','%u','"UI64FMTD"')", mapid, difficulty, (uint64)t);
         }
 
         SetResetTimeFor(mapid,difficulty,t);
@@ -464,8 +478,8 @@ void DungeonResetScheduler::Update()
         {
             // global reset/warning for a certain map
             time_t resetTime = GetResetTimeFor(event.mapid,event.difficulty);
-            m_InstanceSaves._ResetOrWarnAll(event.mapid, event.difficulty, event.type != RESET_EVENT_INFORM_LAST, uint32(resetTime - now));
-            if (event.type != RESET_EVENT_INFORM_LAST)
+            m_InstanceSaves._ResetOrWarnAll(event.mapid, event.difficulty, event.type != RESET_EVENT_INFORM_LAST, uint32(resetTime));
+            if(event.type != RESET_EVENT_INFORM_LAST)
             {
                 // schedule the next warning/reset
                 event.type = ResetEventType(event.type+1);
@@ -519,7 +533,7 @@ MapPersistentStateManager::~MapPersistentStateManager()
 - adding instance into manager
 - called from DungeonMap::Add, _LoadBoundInstances, LoadGroups
 */
-MapPersistentState* MapPersistentStateManager::AddPersistentState(MapEntry const* mapEntry, uint32 instanceId, Difficulty difficulty, time_t resetTime, bool canReset, bool load)
+MapPersistentState* MapPersistentStateManager::AddPersistentState(MapEntry const* mapEntry, uint32 instanceId, Difficulty difficulty, time_t resetTime, bool canReset, bool load /*=false*/, bool initPools /*= true*/)
 {
     if (MapPersistentState *old_save = GetPersistentState(mapEntry->MapID, instanceId))
         return old_save;
@@ -562,13 +576,8 @@ MapPersistentState* MapPersistentStateManager::AddPersistentState(MapEntry const
     else
         m_instanceSaveByMapId[mapEntry->MapID] = state;
 
-    // pool system initialized already for persistent state (can be shared by map states)
-    if (!state->GetSpawnedPoolData().IsInitialized())
-    {
-        sPoolMgr.Initialize(state);                         // init pool system data for map persistent state
-        sGameEventMgr.Initialize(state);                    // init pool system data for map persistent state
-        state->GetSpawnedPoolData().SetInitialized();
-    }
+    if (initPools)
+        state->InitPools();
 
     return state;
 }
@@ -810,7 +819,9 @@ void MapPersistentStateManager::_ResetOrWarnAll(uint32 mapid, Difficulty difficu
         // calculate the next reset time
         time_t next_reset = DungeonResetScheduler::CalculateNextResetTime(mapDiff, now + timeLeft);
         // update it in the DB
-        CharacterDatabase.PExecute("UPDATE instance_reset SET resettime = '"UI64FMTD"' WHERE mapid = '%u' AND difficulty = '%u'", (uint64)next_reset, mapid, difficulty);
+        CharacterDatabase.PExecute("UPDATE instance_reset SET resettime = '%u' WHERE mapid = '%u' AND difficulty = '%u'", (uint64)next_reset, mapid, difficulty);
+        m_Scheduler.SetResetTimeFor(mapid,difficulty,(time_t)next_reset);
+        m_Scheduler.ScheduleReset(true, next_reset-3600, DungeonResetEvent(RESET_EVENT_INFORM_1, mapid, difficulty, 0));
     }
 
     // note: this isn't fast but it's meant to be executed very rarely
@@ -851,6 +862,19 @@ void MapPersistentStateManager::GetStatistics(uint32& numStates, uint32& numBoun
 void MapPersistentStateManager::_CleanupExpiredInstancesAtTime( time_t t )
 {
     _DelHelper(CharacterDatabase, "id, map, instance.difficulty", "instance", "LEFT JOIN instance_reset ON mapid = map AND instance.difficulty =  instance_reset.difficulty WHERE (instance.resettime < '"UI64FMTD"' AND instance.resettime > '0') OR (NOT instance_reset.resettime IS NULL AND instance_reset.resettime < '"UI64FMTD"')",  (uint64)t, (uint64)t);
+}
+
+
+void MapPersistentStateManager::InitWorldMaps()
+{
+    MapPersistentState* state = NULL;                       // need any from created for shared pool state
+    for(uint32 mapid = 0; mapid < sMapStore.GetNumRows(); ++mapid)
+        if (MapEntry const* entry = sMapStore.LookupEntry(mapid))
+            if (!entry->Instanceable())
+                state = AddPersistentState(entry, 0, REGULAR_DIFFICULTY, 0, false, true, false);
+
+    if (state)
+        state->InitPools();
 }
 
 void MapPersistentStateManager::LoadCreatureRespawnTimes()
