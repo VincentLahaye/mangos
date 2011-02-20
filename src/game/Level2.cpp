@@ -1444,6 +1444,33 @@ bool ChatHandler::HandleLookupFactionCommand(char* args)
     return true;
 }
 
+bool ChatHandler::HandleModifyPowerTypeCommand(char* args)
+{
+    if(!*args)
+        return false;
+
+    int32 type = atoi((char*)args);
+
+    if (type < 0 || type >= MAX_POWERS)
+    {
+        SendSysMessage(LANG_BAD_VALUE);
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    Unit* target = getSelectedUnit();
+    if (!target)
+    {
+        SendSysMessage(LANG_SELECT_CHAR_OR_CREATURE);
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    target->setPowerType(Powers(type));
+
+    return true;
+}
+
 bool ChatHandler::HandleModifyRepCommand(char* args)
 {
     if (!*args)
@@ -1795,7 +1822,7 @@ bool ChatHandler::HandleNpcDeleteCommand(char* args)
     else
         unit = getSelectedCreature();
 
-    if (!unit || unit->IsPet() || unit->IsTotem() || unit->IsVehicle())
+    if (!unit || unit->IsPet() || unit->IsTotem())
     {
         SendSysMessage(LANG_SELECT_CREATURE);
         SetSentErrorMessage(true);
@@ -2154,72 +2181,7 @@ bool ChatHandler::HandleNpcUnFollowCommand(char* /*args*/)
     PSendSysMessage(LANG_CREATURE_NOT_FOLLOW_YOU_NOW, creature->GetName());
     return true;
 }
-//npc tame handling
-bool ChatHandler::HandleNpcTameCommand(char* /*args*/)
-{
-    Creature *creatureTarget = getSelectedCreature ();
-    if (!creatureTarget || creatureTarget->IsPet ())
-    {
-        PSendSysMessage (LANG_SELECT_CREATURE);
-        SetSentErrorMessage (true);
-        return false;
-    }
 
-    Player *player = m_session->GetPlayer ();
-
-    if (!player->GetPetGuid().IsEmpty())
-    {
-        SendSysMessage(LANG_YOU_ALREADY_HAVE_PET);
-        SetSentErrorMessage(true);
-        return false;
-    }
-
-    CreatureInfo const* cInfo = creatureTarget->GetCreatureInfo();
-
-    if (!cInfo->isTameable(player->CanTameExoticPets()))
-    {
-        PSendSysMessage(LANG_CREATURE_NON_TAMEABLE,cInfo->Entry);
-        SetSentErrorMessage(true);
-        return false;
-    }
-
-    // Everything looks OK, create new pet
-    Pet* pet = player->CreateTamedPetFrom (creatureTarget);
-    if (!pet)
-    {
-        PSendSysMessage (LANG_CREATURE_NON_TAMEABLE,cInfo->Entry);
-        SetSentErrorMessage (true);
-        return false;
-    }
-
-    // place pet before player
-    float x,y,z;
-    player->GetClosePoint(x, y, z, creatureTarget->GetObjectBoundingRadius(), CONTACT_DISTANCE);
-    pet->Relocate (x,y,z,M_PI_F-player->GetOrientation ());
-
-    // set pet to defensive mode by default (some classes can't control controlled pets in fact).
-    pet->GetCharmInfo()->SetReactState(REACT_DEFENSIVE);
-
-    // calculate proper level
-    uint32 level = (creatureTarget->getLevel() < (player->getLevel() - 5)) ? (player->getLevel() - 5) : creatureTarget->getLevel();
-
-    // prepare visual effect for levelup
-    pet->SetUInt32Value(UNIT_FIELD_LEVEL, level - 1);
-
-    // add to world
-    pet->GetMap()->Add((Creature*)pet);
-
-    // visual effect for levelup
-    pet->SetUInt32Value(UNIT_FIELD_LEVEL, level);
-
-    // caster have pet now
-    player->SetPet(pet);
-
-    pet->SavePetToDB(PET_SAVE_AS_CURRENT);
-    player->PetSpellInitialize();
-
-    return true;
-}
 //npc phasemask handling
 //change phasemask of creature or pet
 bool ChatHandler::HandleNpcSetPhaseCommand(char* args)
@@ -4808,10 +4770,10 @@ bool ChatHandler::HandlePoolInfoCommand(char* args)
     {
         PoolTemplateData const& mother_template = sPoolMgr.GetPoolTemplate(mother_pool_id);
         if (m_session)
-            PSendSysMessage(LANG_POOL_INFO_HEADER_CHAT, pool_id, mother_pool_id, mother_pool_id, mother_template.description.c_str(), 
+            PSendSysMessage(LANG_POOL_INFO_HEADER_CHAT, pool_id, mother_pool_id, mother_pool_id, mother_template.description.c_str(),
                 pool_template.AutoSpawn, pool_template.MaxLimit);
         else
-            PSendSysMessage(LANG_POOL_INFO_HEADER_CONSOLE, pool_id, mother_pool_id, mother_template.description.c_str(), 
+            PSendSysMessage(LANG_POOL_INFO_HEADER_CONSOLE, pool_id, mother_pool_id, mother_template.description.c_str(),
                 pool_template.AutoSpawn, pool_template.MaxLimit);
     }
 
@@ -4921,12 +4883,12 @@ bool ChatHandler::HandlePoolInfoCommand(char* args)
             PoolTemplateData const& itr_template = sPoolMgr.GetPoolTemplate(itr->guid);
             char const* active = poolSpawns && poolSpawns->find(itr->guid) != poolSpawns->end() ? active_str.c_str() : "";
             if (m_session)
-                PSendSysMessage(LANG_POOL_CHANCE_POOL_LIST_CHAT, itr->guid, 
+                PSendSysMessage(LANG_POOL_CHANCE_POOL_LIST_CHAT, itr->guid,
                     itr->guid, itr_template.description.c_str(), itr_template.AutoSpawn ? 1 : 0, itr_template.MaxLimit,
                     sPoolMgr.GetPoolCreatures(itr->guid).size(), sPoolMgr.GetPoolGameObjects(itr->guid).size(), sPoolMgr.GetPoolPools(itr->guid).size(),
                     itr->chance, active);
             else
-                PSendSysMessage(LANG_POOL_CHANCE_POOL_LIST_CONSOLE, itr->guid, 
+                PSendSysMessage(LANG_POOL_CHANCE_POOL_LIST_CONSOLE, itr->guid,
                     itr_template.description.c_str(), itr_template.AutoSpawn ? 1 : 0, itr_template.MaxLimit,
                     sPoolMgr.GetPoolCreatures(itr->guid).size(), sPoolMgr.GetPoolGameObjects(itr->guid).size(), sPoolMgr.GetPoolPools(itr->guid).size(),
                     itr->chance, active);
@@ -4942,12 +4904,12 @@ bool ChatHandler::HandlePoolInfoCommand(char* args)
             PoolTemplateData const& itr_template = sPoolMgr.GetPoolTemplate(itr->guid);
             char const* active = poolSpawns && poolSpawns->find(itr->guid) != poolSpawns->end() ? active_str.c_str() : "";
             if (m_session)
-                PSendSysMessage(LANG_POOL_POOL_LIST_CHAT, itr->guid, 
+                PSendSysMessage(LANG_POOL_POOL_LIST_CHAT, itr->guid,
                     itr->guid, itr_template.description.c_str(), itr_template.AutoSpawn ? 1 : 0, itr_template.MaxLimit,
                     sPoolMgr.GetPoolCreatures(itr->guid).size(), sPoolMgr.GetPoolGameObjects(itr->guid).size(), sPoolMgr.GetPoolPools(itr->guid).size(),
                     active);
             else
-                PSendSysMessage(LANG_POOL_POOL_LIST_CONSOLE, itr->guid, 
+                PSendSysMessage(LANG_POOL_POOL_LIST_CONSOLE, itr->guid,
                     itr_template.description.c_str(), itr_template.AutoSpawn ? 1 : 0, itr_template.MaxLimit,
                     sPoolMgr.GetPoolCreatures(itr->guid).size(), sPoolMgr.GetPoolGameObjects(itr->guid).size(), sPoolMgr.GetPoolPools(itr->guid).size(),
                     active);

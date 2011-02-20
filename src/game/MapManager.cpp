@@ -53,6 +53,11 @@ MapManager::~MapManager()
 void
 MapManager::Initialize()
 {
+    int num_threads(sWorld.getConfig(CONFIG_UINT32_NUMTHREADS));
+    // Start mtmaps if needed.
+    if (num_threads > 0 && m_updater.activate(num_threads) == -1)
+        abort();
+
     InitStateMachine();
 }
 
@@ -260,11 +265,19 @@ void
 MapManager::Update(uint32 diff)
 {
     i_timer.Update(diff);
-    if( !i_timer.Passed() )
+    if( !i_timer.Passed())
         return;
 
-    for(MapMapType::iterator iter=i_maps.begin(); iter != i_maps.end(); ++iter)
-        iter->second->Update((uint32)i_timer.GetCurrent());
+    for (MapMapType::iterator iter=i_maps.begin(); iter != i_maps.end(); ++iter)
+    {
+        if (m_updater.activated())
+            m_updater.schedule_update(*iter->second, (uint32)i_timer.GetCurrent());
+        else
+            iter->second->Update((uint32)i_timer.GetCurrent());
+    }
+
+    if (m_updater.activated())
+        m_updater.wait();
 
     for (TransportSet::iterator iter = m_Transports.begin(); iter != m_Transports.end(); ++iter)
     {
@@ -327,10 +340,16 @@ void MapManager::UnloadAll()
     }
 
     TerrainManager::Instance().UnloadAll();
+
+    if (m_updater.activated())
+        m_updater.deactivate();
+
 }
 
 uint32 MapManager::GetNumInstances()
 {
+    Guard guard(*this);
+
     uint32 ret = 0;
     for(MapMapType::iterator itr = i_maps.begin(); itr != i_maps.end(); ++itr)
     {
@@ -343,6 +362,8 @@ uint32 MapManager::GetNumInstances()
 
 uint32 MapManager::GetNumPlayersInInstances()
 {
+    Guard guard(*this);
+
     uint32 ret = 0;
     for(MapMapType::iterator itr = i_maps.begin(); itr != i_maps.end(); ++itr)
     {
