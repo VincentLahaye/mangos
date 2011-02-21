@@ -245,11 +245,11 @@ void WorldSession::HandleWhoOpcode( WorldPacket & recv_data )
         data << uint32(pzoneid);                            // player zone id
 
         // 50 is maximum player count sent to client
-        if ((++clientcount) == 20)
+        if ((++clientcount) == 50)
             break;
     }
 
-	if (clientcount < 19)
+	if (clientcount < 49)
     {
         // Fake players on WHO LIST                            0,   1,    2,   3,    4,   5     6
         QueryResult *result = CharacterDatabase.Query("SELECT guid,name,race,class,level,zone,gender FROM characters WHERE online>1");
@@ -275,7 +275,7 @@ void WorldSession::HandleWhoOpcode( WorldPacket & recv_data )
                 data << uint8(gender);                      // player gender
                 data << uint32(pzoneid);                    // player zone id
 
-                if ((++clientcount) == 19)
+                if ((++clientcount) == 49)
                     break;
             } while (result->NextRow());
         }
@@ -284,7 +284,7 @@ void WorldSession::HandleWhoOpcode( WorldPacket & recv_data )
 
     uint32 count = m.size();
     data.put( 0, clientcount );                             // insert right count, listed count
-    data.put( 4, count > 20 ? count : clientcount );        // insert right count, online count
+    data.put( 4, count > 50 ? count : clientcount );        // insert right count, online count
 
     SendPacket(&data);
     DEBUG_LOG( "WORLD: Send SMSG_WHO Message" );
