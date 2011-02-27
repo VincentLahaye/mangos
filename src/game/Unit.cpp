@@ -11546,7 +11546,29 @@ void Unit::MonsterMoveWithSpeed(float x, float y, float z, uint32 transitTime)
     }
 }
 
-<<<<<<< HEAD
+<void Unit::MonsterJump(float x, float y, float z, float o, uint32 transitTime, uint32 verticalSpeed)
+{
+    SendMonsterMove(x, y, z, SPLINETYPE_NORMAL, SplineFlags(SPLINEFLAG_TRAJECTORY | SPLINEFLAG_WALKMODE), transitTime, NULL, double(verticalSpeed));
+
+	 if (GetTypeId() != TYPEID_PLAYER)
+    {
+        Creature* c = (Creature*)this;
+        // Creature relocation acts like instant movement generator, so current generator expects interrupt/reset calls to react properly
+        if (!c->GetMotionMaster()->empty())
+            if (MovementGenerator *movgen = c->GetMotionMaster()->top())
+                movgen->Interrupt(*c);
+
+		//GetMap()->CreatureRelocation((Creature*)this, path[end-1].x, path[end-1].y, path[end-1].z, 0.0f);
+		GetMap()->CreatureRelocation((Creature*)this, x, y, z, 0.0f);
+
+		// finished relocation, movegen can different from top before creature relocation,
+        // but apply Reset expected to be safe in any case
+        if (!c->GetMotionMaster()->empty())
+            if (MovementGenerator *movgen = c->GetMotionMaster()->top())
+                movgen->Reset(*c);
+    }
+}
+
 void Unit::MonsterMoveByPath(float x, float y, float z, uint32 speed, bool smoothPath)
 {
     PathInfo path(this, x, y, z, !smoothPath);
@@ -11566,11 +11588,6 @@ void Unit::MonsterMoveByPath(Path<PathElem,PathNode> const& path, uint32 start, 
 {
     SplineFlags flags = GetTypeId() == TYPEID_PLAYER ? SPLINEFLAG_WALKMODE : ((Creature*)this)->GetSplineFlags();
     SendMonsterMoveByPath(path, start, end, flags, transitTime);
-=======
-void Unit::MonsterJump(float x, float y, float z, float o, uint32 transitTime, uint32 verticalSpeed)
-{
-    SendMonsterMove(x, y, z, SPLINETYPE_NORMAL, SplineFlags(SPLINEFLAG_TRAJECTORY | SPLINEFLAG_WALKMODE), transitTime, NULL, double(verticalSpeed));
->>>>>>> rsa
 
     if (GetTypeId() != TYPEID_PLAYER)
     {
@@ -11580,11 +11597,7 @@ void Unit::MonsterJump(float x, float y, float z, float o, uint32 transitTime, u
             if (MovementGenerator *movgen = c->GetMotionMaster()->top())
                 movgen->Interrupt(*c);
 
-<<<<<<< HEAD
         GetMap()->CreatureRelocation((Creature*)this, path[end-1].x, path[end-1].y, path[end-1].z, 0.0f);
-=======
-        GetMap()->CreatureRelocation((Creature*)this, x, y, z, o);
->>>>>>> rsa
 
         // finished relocation, movegen can different from top before creature relocation,
         // but apply Reset expected to be safe in any case
@@ -11594,11 +11607,8 @@ void Unit::MonsterJump(float x, float y, float z, float o, uint32 transitTime, u
     }
 }
 
-<<<<<<< HEAD
 template void Unit::MonsterMoveByPath<PathNode>(const Path<PathNode> &, uint32, uint32, uint32);
 
-=======
->>>>>>> rsa
 struct SetPvPHelper
 {
     explicit SetPvPHelper(bool _state) : state(_state) {}
