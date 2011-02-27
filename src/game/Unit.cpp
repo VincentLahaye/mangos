@@ -11546,7 +11546,7 @@ void Unit::MonsterMoveWithSpeed(float x, float y, float z, uint32 transitTime)
     }
 }
 
-<void Unit::MonsterJump(float x, float y, float z, float o, uint32 transitTime, uint32 verticalSpeed)
+void Unit::MonsterJump(float x, float y, float z, float o, uint32 transitTime, uint32 verticalSpeed)
 {
     SendMonsterMove(x, y, z, SPLINETYPE_NORMAL, SplineFlags(SPLINEFLAG_TRAJECTORY | SPLINEFLAG_WALKMODE), transitTime, NULL, double(verticalSpeed));
 
