@@ -25,7 +25,6 @@
 #include "ace/Thread_Mutex.h"
 #include <list>
 #include <map>
-#include "Utilities/UnorderedMapSet.h"
 #include "Database/DatabaseEnv.h"
 #include "DBCEnums.h"
 #include "DBCStores.h"
@@ -53,6 +52,17 @@ struct MapCellObjectGuids
 typedef UNORDERED_MAP<uint32/*cell_id*/,MapCellObjectGuids> MapCellObjectGuidsMap;
 
 class MapPersistentStateManager;
+
+// Instance Reset Schedule is calculated from this point in time.
+// 2005-12-28 10:00:00 - 10:00:00 = 2005-12-28 00:00:00
+// We will add X hours to this value, taking X from config (10 default).
+#define INSTANCE_RESET_SCHEDULE_START_TIME  1135717200
+
+/*
+    Holds the information necessary for creating a new map for non-instanceable maps
+
+    As object Used for non-instanceable Map only
+*/
 
 class MapPersistentState
 {

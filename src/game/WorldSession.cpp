@@ -392,6 +392,12 @@ void WorldSession::LogoutPlayer(bool Save)
             _player->BuildPlayerRepop();
             _player->RepopAtGraveyard();
         }
+        else if (_player->HasPendingBind())
+        {
+            _player->RepopAtGraveyard();
+            _player->SetPendingBind(NULL, 0);
+        }
+
         //drop a flag if player is carrying it
         if(BattleGround *bg = _player->GetBattleGround())
             bg->EventPlayerLoggedOut(_player);
@@ -437,6 +443,8 @@ void WorldSession::LogoutPlayer(bool Save)
 
         ///- Remove pet
         _player->RemovePet(PET_SAVE_AS_CURRENT);
+
+        _player->InterruptNonMeleeSpells(true);
 
         ///- empty buyback items and save the player in the database
         // some save parts only correctly work in case player present in map/player_lists (pets, etc)

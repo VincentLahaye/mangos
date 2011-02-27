@@ -44,6 +44,9 @@ void WorldSession::HandleMoveWorldportAckOpcode()
     if(!GetPlayer()->IsBeingTeleportedFar())
         return;
 
+    if (_player->GetVehicleKit())
+        _player->GetVehicleKit()->RemoveAllPassengers();
+
     // get start teleport coordinates (will used later in fail case)
     WorldLocation old_loc;
     GetPlayer()->GetPosition(old_loc);
@@ -291,6 +294,9 @@ void WorldSession::HandleMovementOpcodes( WorldPacket & recv_data )
     if (opcode == MSG_MOVE_FALL_LAND && plMover && !plMover->IsTaxiFlying())
         plMover->HandleFall(movementInfo);
 
+    /* process anticheat check */
+    GetPlayer()->GetAntiCheat()->DoAntiCheatCheck(CHECK_MOVEMENT,movementInfo, opcode);
+
     /* process position-change */
     HandleMoverRelocation(movementInfo);
 
@@ -418,32 +424,6 @@ void WorldSession::HandleMoveNotActiveMoverOpcode(WorldPacket &recv_data)
     _player->m_movementInfo = mi;
 }
 
-void WorldSession::HandleDismissControlledVehicle(WorldPacket &recv_data)
-{
-    DEBUG_LOG("WORLD: Recvd CMSG_DISMISS_CONTROLLED_VEHICLE");
-    recv_data.hexlike();
-
-    ObjectGuid guid;
-    MovementInfo mi;
-
-    recv_data >> guid.ReadAsPacked();
-    recv_data >> mi;
-
-    ObjectGuid vehicleGUID = _player->GetCharmGuid();
-
-    if (vehicleGUID.IsEmpty())                              // something wrong here...
-        return;
-
-    _player->m_movementInfo = mi;
-
-    // using charm guid, because we don't have vehicle guid...
-    if(Vehicle *vehicle = _player->GetMap()->GetVehicle(vehicleGUID))
-    {
-        // Aura::HandleAuraControlVehicle will call Player::ExitVehicle
-        vehicle->RemoveSpellsCausingAura(SPELL_AURA_CONTROL_VEHICLE);
-    }
-}
-
 void WorldSession::HandleMountSpecialAnimOpcode(WorldPacket& /*recvdata*/)
 {
     //DEBUG_LOG("WORLD: Recvd CMSG_MOUNTSPECIAL_ANIM");
@@ -565,8 +545,11 @@ void WorldSession::HandleMoverRelocation(MovementInfo& movementInfo)
     {
         if (movementInfo.HasMovementFlag(MOVEFLAG_ONTRANSPORT))
         {
-            if (!plMover->m_transport)
+            if (!plMover->GetTransport())
             {
+                /* process anticheat check */
+                GetPlayer()->GetAntiCheat()->DoAntiCheatCheck(CHECK_TRANSPORT,movementInfo);
+
                 // elevators also cause the client to send MOVEFLAG_ONTRANSPORT - just unmount if the guid can be found in the transport list
                 for (MapManager::TransportSet::const_iterator iter = sMapMgr.m_Transports.begin(); iter != sMapMgr.m_Transports.end(); ++iter)
                 {
@@ -574,15 +557,19 @@ void WorldSession::HandleMoverRelocation(MovementInfo& movementInfo)
                     {
                         plMover->m_transport = (*iter);
                         (*iter)->AddPassenger(plMover);
+
+                        if (plMover->GetVehicleKit())
+                            plMover->GetVehicleKit()->RemoveAllPassengers();
+
                         break;
                     }
                 }
             }
         }
-        else if (plMover->m_transport)               // if we were on a transport, leave
+        else if (plMover->GetTransport())               // if we were on a transport, leave
         {
-            plMover->m_transport->RemovePassenger(plMover);
-            plMover->m_transport = NULL;
+            plMover->GetTransport()->RemovePassenger(plMover);
+            plMover->SetTransport(NULL);
             movementInfo.ClearTransportData();
         }
 
@@ -629,6 +616,9 @@ void WorldSession::HandleMoverRelocation(MovementInfo& movementInfo)
     else                                                    // creature charmed
     {
         if (mover->IsInWorld())
-            mover->GetMap()->CreatureRelocation((Creature*)mover, movementInfo.GetPos()->x, movementInfo.GetPos()->y, movementInfo.GetPos()->z, movementInfo.GetPos()->o);
+        {
+            mover->m_movementInfo = movementInfo;
+            mover->SetPosition(movementInfo.GetPos()->x, movementInfo.GetPos()->y, movementInfo.GetPos()->z, movementInfo.GetPos()->o);
+        }
     }
 }
