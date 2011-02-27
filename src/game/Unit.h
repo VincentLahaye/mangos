@@ -2030,11 +2030,10 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         bool CreateVehicleKit(uint32 vehicleId);
         void RemoveVehicleKit();
 
-		void ScheduleAINotify(uint32 delay);
-        bool IsAINotifySheduled() const { return m_AINotifySheduled;}
-        void _SetAINotifySheduled(bool on) { m_AINotifySheduled = on;}       // only for call from RelocationNotifyEvent class code
+        void ScheduleAINotify(uint32 delay);
+        bool IsAINotifyScheduled() const { return m_AINotifyScheduled;}
+        void _SetAINotifyScheduled(bool on) { m_AINotifyScheduled = on;}       // only for call from RelocationNotifyEvent code
         void OnRelocated();
-
 
     protected:
         explicit Unit ();
@@ -2114,7 +2113,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
 
         UnitVisibility m_Visibility;
         Position m_last_notified_position;
-        bool m_AINotifySheduled;
+        bool m_AINotifyScheduled;
 
         Diminishing m_Diminishing;
         // Manage all Units threatening us
