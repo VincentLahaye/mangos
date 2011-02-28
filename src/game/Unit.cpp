@@ -12119,3 +12119,62 @@ bool Unit::IsAllowedDamageInArea(Unit* pVictim) const
 
     return true;
 }
+
+class RelocationNotifyEvent : public BasicEvent
+{
+public:
+    RelocationNotifyEvent(Unit& owner) : BasicEvent(), m_owner(owner)
+    {
+        m_owner._SetAINotifyScheduled(true);
+    }
+
+    bool Execute(uint64 /*e_time*/, uint32 /*p_time*/)
+    {
+        float radius = MAX_CREATURE_ATTACK_RADIUS * sWorld.getConfig(CONFIG_FLOAT_RATE_CREATURE_AGGRO);
+        if (m_owner.GetTypeId() == TYPEID_PLAYER)
+        {
+            MaNGOS::PlayerRelocationNotifier notify((Player&)m_owner);
+            Cell::VisitAllObjects(&m_owner,notify,radius);
+        } 
+        else //if(m_owner.GetTypeId() == TYPEID_UNIT)
+        {
+            MaNGOS::CreatureRelocationNotifier notify((Creature&)m_owner);
+            Cell::VisitAllObjects(&m_owner,notify,radius);
+        }
+        m_owner._SetAINotifyScheduled(false);
+        return true;
+    }
+
+    void Abort(uint64)
+    {
+        m_owner._SetAINotifyScheduled(false);
+    }
+
+private:
+    Unit& m_owner;
+};
+
+void Unit::ScheduleAINotify(uint32 delay)
+{
+    if (!IsAINotifyScheduled())
+        m_Events.AddEvent(new RelocationNotifyEvent(*this), m_Events.CalculateTime(delay));
+}
+
+void Unit::OnRelocated()
+{
+    // switch to use G3D::Vector3 is good idea, maybe
+    float dx = m_last_notified_position.x - GetPositionX();
+    float dy = m_last_notified_position.y - GetPositionY();
+    float dz = m_last_notified_position.z - GetPositionZ();
+    float distsq = dx*dx+dy*dy+dz*dz;
+    if (distsq > World::GetRelocationLowerLimitSq())
+    {
+        m_last_notified_position.x = GetPositionX();
+        m_last_notified_position.y = GetPositionY();
+        m_last_notified_position.z = GetPositionZ();
+
+        GetViewPoint().Call_UpdateVisibilityForOwner();
+        UpdateObjectVisibility();
+    }
+    ScheduleAINotify(World::GetRelocationAINotifyDelay());
+}
