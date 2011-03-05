@@ -91,11 +91,11 @@ bool ChatHandler::HandleServerInfoCommand(char* /*args*/)
 {
     uint32 activeClientsNum = sWorld.GetActiveSessionCount();
     uint32 queuedClientsNum = sWorld.GetQueuedSessionCount();
-    //uint32 maxActiveClientsNum = sWorld.GetMaxActiveSessionCount();
-    //uint32 maxQueuedClientsNum = sWorld.GetMaxQueuedSessionCount();
+    uint32 maxActiveClientsNum = sWorld.GetMaxActiveSessionCount();
+    uint32 maxQueuedClientsNum = sWorld.GetMaxQueuedSessionCount();
     std::string str = secsToTimeString(sWorld.GetUptime());
 
-    /*char const* full;
+    char const* full;
     if(m_session)
         full = _FULLVERSION(REVISION_DATE,REVISION_TIME,REVISION_NR,"|cffffffff|Hurl:" REVISION_ID "|h" REVISION_ID "|h|r");
     else
@@ -111,12 +111,11 @@ bool ChatHandler::HandleServerInfoCommand(char* /*args*/)
             SendSysMessage(LANG_USING_SCRIPT_LIB_UNKNOWN);
     }
     else
-        SendSysMessage(LANG_USING_SCRIPT_LIB_NONE);*/
+        SendSysMessage(LANG_USING_SCRIPT_LIB_NONE);
 
-    //PSendSysMessage(LANG_USING_WORLD_DB,sWorld.GetDBVersion());
-    //PSendSysMessage(LANG_USING_EVENT_AI,sWorld.GetCreatureEventAIVersion());
-    //PSendSysMessage(LANG_CONNECTED_USERS, activeClientsNum, maxActiveClientsNum, queuedClientsNum, maxQueuedClientsNum);
-	PSendSysMessage(LANG_CONNECTED_USERS, activeClientsNum, queuedClientsNum, maxQueuedClientsNum);
+    PSendSysMessage(LANG_USING_WORLD_DB,sWorld.GetDBVersion());
+    PSendSysMessage(LANG_USING_EVENT_AI,sWorld.GetCreatureEventAIVersion());
+    PSendSysMessage(LANG_CONNECTED_USERS, activeClientsNum, maxActiveClientsNum, queuedClientsNum, maxQueuedClientsNum);
     PSendSysMessage(LANG_UPTIME, str.c_str());
 
     return true;
