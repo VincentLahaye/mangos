@@ -2300,7 +2300,20 @@ void World::SetPlayerLimit( int32 limit, bool needUpdate )
 
 void World::UpdateMaxSessionCounters()
 {
-    m_maxActiveSessionCount = std::max(m_maxActiveSessionCount,uint32(m_sessions.size()-m_QueuedSessions.size()));
+	uint32 activeClientsNum = 0;
+	QueryResult *result = CharacterDatabase.Query("SELECT guid FROM characters WHERE online>1");
+        if (result)
+        {
+            do
+            {
+                activeClientsNum++;
+
+            } while (result->NextRow());
+        }
+        delete result;
+    }
+
+    m_maxActiveSessionCount = std::max(m_maxActiveSessionCount,uint32(activeClientsNum));
     m_maxQueuedSessionCount = std::max(m_maxQueuedSessionCount,uint32(m_QueuedSessions.size()));
 }
 

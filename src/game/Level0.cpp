@@ -89,22 +89,10 @@ bool ChatHandler::HandleStartCommand(char* /*args*/)
 
 bool ChatHandler::HandleServerInfoCommand(char* /*args*/)
 {
-	uint32 activeClientsNum = 0;
-	QueryResult *result = CharacterDatabase.Query("SELECT guid FROM characters WHERE online>1");
-        if (result)
-        {
-            do
-            {
-                activeClientsNum++;
-
-            } while (result->NextRow());
-        }
-        delete result;
-    }
-    
+    uint32 activeClientsNum = sWorld.GetActiveSessionCount();
     uint32 queuedClientsNum = sWorld.GetQueuedSessionCount();
     //uint32 maxActiveClientsNum = sWorld.GetMaxActiveSessionCount();
-    uint32 maxQueuedClientsNum = sWorld.GetMaxQueuedSessionCount();
+    //uint32 maxQueuedClientsNum = sWorld.GetMaxQueuedSessionCount();
     std::string str = secsToTimeString(sWorld.GetUptime());
 
     /*char const* full;
