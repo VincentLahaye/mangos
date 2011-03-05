@@ -7255,7 +7255,7 @@ void Aura::PeriodicTick()
             if (pCaster->GetTypeId() == TYPEID_PLAYER)
                 pdamage -= target->GetSpellDamageReduction(pdamage);
 
-            target->CalculateDamageAbsorbAndResist(pCaster, GetSpellSchoolMask(spellProto), DOT, pdamage, &absorb, &resist, !(GetSpellProto()->AttributesEx2 & SPELL_ATTR_EX2_CANT_REFLECTED));
+            target->CalculateDamageAbsorbAndResist(pCaster, GetSpellSchoolMask(spellProto), DOT, pdamage, &absorb, &resist, !(GetSpellProto()->AttributesEx & SPELL_ATTR_EX_CANT_REFLECTED));
             cleanDamage.absorb += absorb;
 
             DETAIL_FILTER_LOG(LOG_FILTER_PERIODIC_AFFECTS, "PeriodicTick: %s attacked %s for %u dmg inflicted by %u abs is %u",
@@ -7348,7 +7348,7 @@ void Aura::PeriodicTick()
             if (GetCasterGuid().IsPlayer())
                 pdamage -= target->GetSpellDamageReduction(pdamage);
 
-            target->CalculateDamageAbsorbAndResist(pCaster, GetSpellSchoolMask(spellProto), DOT, pdamage, &absorb, &resist, !(spellProto->AttributesEx2 & SPELL_ATTR_EX2_CANT_REFLECTED));
+            target->CalculateDamageAbsorbAndResist(pCaster, GetSpellSchoolMask(spellProto), DOT, pdamage, &absorb, &resist, !(spellProto->AttributesEx & SPELL_ATTR_EX_CANT_REFLECTED));
             cleanDamage.absorb += absorb;
 
             DETAIL_FILTER_LOG(LOG_FILTER_PERIODIC_AFFECTS, "PeriodicTick: %s health leech of %s for %u dmg inflicted by %u abs is %u",
@@ -8515,12 +8515,6 @@ void Aura::HandlePhase(bool apply, bool Real)
     }
 
     // no-phase is also phase state so same code for apply and remove
-    uint32 phase;
-
-    if(GetSpellProto()->Id == 51852)
-        phase = apply ? (target->GetPhaseMask() | GetMiscValue()) : (target->GetPhaseMask() & ~GetMiscValue());
-    else
-        phase = apply ? GetMiscValue() : PHASEMASK_NORMAL;
 
     // phase auras normally not expected at BG but anyway better check
     if(target->GetTypeId() == TYPEID_PLAYER)
@@ -8532,9 +8526,9 @@ void Aura::HandlePhase(bool apply, bool Real)
 
         // GM-mode have mask 0xFFFFFFFF
         if(!((Player*)target)->isGameMaster())
-            target->SetPhaseMask(phase, false);
+            target->SetPhaseMask(apply ? GetMiscValue() : PHASEMASK_NORMAL, false);
 
-        ((Player*)target)->GetSession()->SendSetPhaseShift(phase);
+        ((Player*)target)->GetSession()->SendSetPhaseShift(apply ? GetMiscValue() : PHASEMASK_NORMAL);
 
         if (GetEffIndex() == EFFECT_INDEX_0)
         {
@@ -8559,18 +8553,11 @@ void Aura::HandlePhase(bool apply, bool Real)
             }
         }
 
-        if(target->GetCharm() && !apply) //remove other auras from charm on unapply
-        {
-            Creature * creat=((Creature*)target->GetCharm());
-            creat->RemoveAurasDueToSpellByCancel(GetId());
-        }
     }
     else
-        target->SetPhaseMask(phase, false);
+        target->SetPhaseMask(apply ? GetMiscValue() : PHASEMASK_NORMAL, false);
 
-    // need triggering visibility update base at phase update of not GM invisible (other GMs anyway see in any phases)
-    if(target->GetVisibility() != VISIBILITY_OFF)
-        target->SetVisibility(target->GetVisibility());
+    target->UpdateVisibilityAndView();
 }
 
 void Aura::HandleAuraSafeFall( bool Apply, bool Real )
@@ -9540,6 +9527,8 @@ void SpellAuraHolder::HandleSpellSpecificBoosts(bool apply)
             // Barkskin
             if (GetId()==22812 && m_target->HasAura(63057)) // Glyph of Barkskin
                 spellId1 = 63058;                           // Glyph - Barkskin 01
+            else if (!apply && GetId() == 5229)             // Enrage (Druid Bear)
+                spellId1 = 51185;                           // King of the Jungle (Enrage damage aura)
             else
                 return;
             break;
