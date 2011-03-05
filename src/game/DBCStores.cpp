@@ -282,13 +282,19 @@ struct LocalData
 };
 
 template<class T>
-inline void LoadDBC(LocalData& localeData,barGoLink& bar, StoreProblemList& errlist, DBCStorage<T>& storage, const std::string& dbc_path, const std::string& filename)
+inline void LoadDBC(LocalData& localeData,barGoLink& bar, StoreProblemList& errlist, DBCStorage<T>& storage, const std::string& dbc_path, const std::string& filename, const std::string * custom_entries = NULL, const std::string * idname = NULL)
 {
     // compatibility format and C++ structure sizes
     MANGOS_ASSERT(DBCFileLoader::GetFormatRecordSize(storage.GetFormat()) == sizeof(T) || LoadDBC_assert_print(DBCFileLoader::GetFormatRecordSize(storage.GetFormat()),sizeof(T),filename));
 
     std::string dbc_filename = dbc_path + filename;
-    if(storage.Load(dbc_filename.c_str()))
+
+    SqlDbc * sql = NULL;
+
+    if (custom_entries)
+        sql = new SqlDbc(&filename,custom_entries,idname,storage.GetFormat());
+
+    if(storage.Load(dbc_filename.c_str(),sql))
     {
         bar.step();
         for(uint8 i = 0; fullLocaleNameList[i].name; ++i)
@@ -342,6 +348,9 @@ inline void LoadDBC(LocalData& localeData,barGoLink& bar, StoreProblemList& errl
         else
             errlist.push_back(dbc_filename);
     }
+
+    if (sql)
+        delete sql;
 }
 
 void LoadDBCStores(const std::string& dataPath)
@@ -422,6 +431,19 @@ void LoadDBCStores(const std::string& dataPath)
 
     LoadDBC(availableDbcLocales,bar,bad_dbc_files,sFactionTemplateStore,     dbcPath,"FactionTemplate.dbc");
     LoadDBC(availableDbcLocales,bar,bad_dbc_files,sGameObjectDisplayInfoStore,dbcPath,"GameObjectDisplayInfo.dbc");
+    for (uint32 i = 0; i < sGameObjectDisplayInfoStore.GetNumRows(); ++i)
+    {
+        if (GameObjectDisplayInfoEntry *info = const_cast<GameObjectDisplayInfoEntry*>(sGameObjectDisplayInfoStore.LookupEntry(i)))
+        {
+            if (info->maxX < info->minX)
+                std::swap(info->maxX, info->minX);
+            if (info->maxY < info->minY)
+                std::swap(info->maxY, info->minY);
+            if (info->maxZ < info->minZ)
+                std::swap(info->maxZ, info->minZ);
+        }
+    }
+
     LoadDBC(availableDbcLocales,bar,bad_dbc_files,sGemPropertiesStore,       dbcPath,"GemProperties.dbc");
     LoadDBC(availableDbcLocales,bar,bad_dbc_files,sGlyphPropertiesStore,     dbcPath,"GlyphProperties.dbc");
     LoadDBC(availableDbcLocales,bar,bad_dbc_files,sGlyphSlotStore,           dbcPath,"GlyphSlot.dbc");
@@ -478,7 +500,7 @@ void LoadDBCStores(const std::string& dataPath)
     LoadDBC(availableDbcLocales,bar,bad_dbc_files,sSkillLineStore,           dbcPath,"SkillLine.dbc");
     LoadDBC(availableDbcLocales,bar,bad_dbc_files,sSkillLineAbilityStore,    dbcPath,"SkillLineAbility.dbc");
     LoadDBC(availableDbcLocales,bar,bad_dbc_files,sSoundEntriesStore,        dbcPath,"SoundEntries.dbc");
-    LoadDBC(availableDbcLocales,bar,bad_dbc_files,sSpellStore,               dbcPath,"Spell.dbc");
+    LoadDBC(availableDbcLocales,bar,bad_dbc_files,sSpellStore,               dbcPath,"Spell.dbc", &CustomSpellEntryfmt, &CustomSpellEntryIndex);
     for(uint32 i = 1; i < sSpellStore.GetNumRows(); ++i)
     {
         SpellEntry const * spell = sSpellStore.LookupEntry(i);
@@ -636,6 +658,10 @@ void LoadDBCStores(const std::string& dataPath)
             // old continent node (+ nodes virtually at old continents, check explicitly to avoid loading map files for zone info)
             if (node->map_id < 2 || i == 82 || i == 83 || i == 93 || i == 94)
                 sOldContinentsNodesMask[field] |= submask;
+
+            // fix DK node at Ebon Hold
+            if (i == 315)
+               ((TaxiNodesEntry*)node)->MountCreatureID[1] = 32981;
         }
     }
 
@@ -976,4 +1002,5 @@ MANGOS_DLL_SPEC DBCStorage <FactionEntry>       const* GetFactionStore()        
 MANGOS_DLL_SPEC DBCStorage <ItemEntry>          const* GetItemDisplayStore()    { return &sItemStore;           }
 MANGOS_DLL_SPEC DBCStorage <CreatureDisplayInfoEntry> const* GetCreatureDisplayStore() { return &sCreatureDisplayInfoStore; }
 MANGOS_DLL_SPEC DBCStorage <EmotesEntry>        const* GetEmotesStore()         { return &sEmotesStore;         }
+MANGOS_DLL_SPEC DBCStorage <AchievementEntry>   const* GetAchievementStore()    { return &sAchievementStore;    }
 MANGOS_DLL_SPEC DBCStorage <EmotesTextEntry>    const* GetEmotesTextStore()     { return &sEmotesTextStore;     }

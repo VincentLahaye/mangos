@@ -1442,6 +1442,33 @@ bool ChatHandler::HandleLookupFactionCommand(char* args)
     return true;
 }
 
+bool ChatHandler::HandleModifyPowerTypeCommand(char* args)
+{
+    if(!*args)
+        return false;
+
+    int32 type = atoi((char*)args);
+
+    if (type < 0 || type >= MAX_POWERS)
+    {
+        SendSysMessage(LANG_BAD_VALUE);
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    Unit* target = getSelectedUnit();
+    if (!target)
+    {
+        SendSysMessage(LANG_SELECT_CHAR_OR_CREATURE);
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    target->setPowerType(Powers(type));
+
+    return true;
+}
+
 bool ChatHandler::HandleModifyRepCommand(char* args)
 {
     if (!*args)
@@ -1793,7 +1820,7 @@ bool ChatHandler::HandleNpcDeleteCommand(char* args)
     else
         unit = getSelectedCreature();
 
-    if (!unit || unit->IsPet() || unit->IsTotem() || unit->IsVehicle())
+    if (!unit || unit->IsPet() || unit->IsTotem())
     {
         SendSysMessage(LANG_SELECT_CREATURE);
         SetSentErrorMessage(true);

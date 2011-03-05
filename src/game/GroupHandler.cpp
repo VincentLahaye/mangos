@@ -208,6 +208,10 @@ void WorldSession::HandleGroupAcceptOpcode( WorldPacket & recv_data )
     // everything is fine, do it, PLAYER'S GROUP IS SET IN ADDMEMBER!!!
     if(!group->AddMember(GetPlayer()->GetObjectGuid(), GetPlayer()->GetName()))
         return;
+
+    // Frozen Mod
+    group->BroadcastGroupUpdate();
+    // Frozen Mod
 }
 
 void WorldSession::HandleGroupDeclineOpcode( WorldPacket & /*recv_data*/ )
@@ -797,6 +801,9 @@ void WorldSession::BuildPartyMemberStatsChangedPacket(Player *player, WorldPacke
         else
             *data << uint64(0);
     }
+
+    if (mask & GROUP_UPDATE_FLAG_VEHICLE_SEAT)
+        *data << uint32(player->m_movementInfo.GetTransportDBCSeat());
 }
 
 /*this procedure handles clients CMSG_REQUEST_PARTY_MEMBER_STATS request*/
@@ -828,9 +835,11 @@ void WorldSession::HandleRequestPartyMemberStatsOpcode( WorldPacket &recv_data )
     if(pet)
         mask1 = 0x7FFFFFFF;                                 // for hunters and other classes with pets
 
+    uint16 online_status = GetPlayer()->IsReferAFriendLinked(player) ?  (MEMBER_STATUS_ONLINE | MEMBER_STATUS_RAF) : MEMBER_STATUS_ONLINE;
+
     Powers powerType = player->getPowerType();
     data << uint32(mask1);                                  // group update mask
-    data << uint16(MEMBER_STATUS_ONLINE);                   // member's online status
+    data << uint16(online_status);                          // member's online status
     data << uint32(player->GetHealth());                    // GROUP_UPDATE_FLAG_CUR_HP
     data << uint32(player->GetMaxHealth());                 // GROUP_UPDATE_FLAG_MAX_HP
     data << uint8(powerType);                               // GROUP_UPDATE_FLAG_POWER_TYPE

@@ -75,6 +75,14 @@ ChatCommand * ChatHandler::getCommandTable()
         { NULL,             0,                  false, NULL,                                           "", NULL }
     };
 
+    static ChatCommand accountFriendCommandTable[] =
+    {
+        { "add"  ,          SEC_ADMINISTRATOR,  true,  &ChatHandler::HandleAccountFriendAddCommand,    "", NULL },
+        { "delete",         SEC_ADMINISTRATOR,  true,  &ChatHandler::HandleAccountFriendDeleteCommand, "", NULL },
+        { "list",           SEC_ADMINISTRATOR,  true,  &ChatHandler::HandleAccountFriendListCommand,   "", NULL },
+        { NULL,             0,                  false, NULL,                                           "", NULL }
+    };
+
     static ChatCommand accountCommandTable[] =
     {
         { "characters",     SEC_ADMINISTRATOR,  true,  &ChatHandler::HandleAccountCharactersCommand,   "", NULL },
@@ -83,6 +91,7 @@ ChatCommand * ChatHandler::getCommandTable()
         { "onlinelist",     SEC_CONSOLE,        true,  &ChatHandler::HandleAccountOnlineListCommand,   "", NULL },
         { "lock",           SEC_PLAYER,         true,  &ChatHandler::HandleAccountLockCommand,         "", NULL },
         { "set",            SEC_ADMINISTRATOR,  true,  NULL,                                           "", accountSetCommandTable },
+        { "friend",         SEC_ADMINISTRATOR,  true,  NULL,                                           "", accountFriendCommandTable },
         { "password",       SEC_PLAYER,         true,  &ChatHandler::HandleAccountPasswordCommand,     "", NULL },
         { "",               SEC_PLAYER,         true,  &ChatHandler::HandleAccountCommand,             "", NULL },
         { NULL,             0,                  false, NULL,                                           "", NULL }
@@ -191,6 +200,7 @@ ChatCommand * ChatHandler::getCommandTable()
         { "sellerror",      SEC_ADMINISTRATOR,  false, &ChatHandler::HandleDebugSendSellErrorCommand,       "", NULL },
         { "setphaseshift",  SEC_ADMINISTRATOR,  false, &ChatHandler::HandleDebugSendSetPhaseShiftCommand,   "", NULL },
         { "spellfail",      SEC_ADMINISTRATOR,  false, &ChatHandler::HandleDebugSendSpellFailCommand,       "", NULL },
+        { "calendarresult", SEC_ADMINISTRATOR,  false, &ChatHandler::HandleDebugSendCalendarResultCommand,  "", NULL },
         { NULL,             0,                  false, NULL,                                                "", NULL }
     };
 
@@ -210,10 +220,9 @@ ChatCommand * ChatHandler::getCommandTable()
         { "setaurastate",   SEC_ADMINISTRATOR,  false, &ChatHandler::HandleDebugSetAuraStateCommand,        "", NULL },
         { "setitemvalue",   SEC_ADMINISTRATOR,  false, &ChatHandler::HandleDebugSetItemValueCommand,        "", NULL },
         { "setvalue",       SEC_ADMINISTRATOR,  false, &ChatHandler::HandleDebugSetValueCommand,            "", NULL },
+        { "spellmods",      SEC_ADMINISTRATOR,  false, &ChatHandler::HandleDebugSpellModsCommand,           "", NULL },
         { "spellcheck",     SEC_CONSOLE,        true,  &ChatHandler::HandleDebugSpellCheckCommand,          "", NULL },
         { "spellcoefs",     SEC_ADMINISTRATOR,  true,  &ChatHandler::HandleDebugSpellCoefsCommand,          "", NULL },
-        { "spellmods",      SEC_ADMINISTRATOR,  false, &ChatHandler::HandleDebugSpellModsCommand,           "", NULL },
-        { "spawnvehicle",   SEC_ADMINISTRATOR,  false, &ChatHandler::HandleDebugSpawnVehicleCommand,        "", NULL },
         { "uws",            SEC_ADMINISTRATOR,  false, &ChatHandler::HandleDebugUpdateWorldStateCommand,    "", NULL },
         { NULL,             0,                  false, NULL,                                                "", NULL }
     };
@@ -364,6 +373,7 @@ ChatCommand * ChatHandler::getCommandTable()
         { "rage",           SEC_MODERATOR,      false, &ChatHandler::HandleModifyRageCommand,          "", NULL },
         { "runicpower",     SEC_MODERATOR,      false, &ChatHandler::HandleModifyRunicPowerCommand,    "", NULL },
         { "energy",         SEC_MODERATOR,      false, &ChatHandler::HandleModifyEnergyCommand,        "", NULL },
+        { "powertype",      SEC_ADMINISTRATOR,  false, &ChatHandler::HandleModifyPowerTypeCommand,     "", NULL },
         { "money",          SEC_MODERATOR,      false, &ChatHandler::HandleModifyMoneyCommand,         "", NULL },
         { "speed",          SEC_MODERATOR,      false, &ChatHandler::HandleModifySpeedCommand,         "", NULL },
         { "swim",           SEC_MODERATOR,      false, &ChatHandler::HandleModifySwimCommand,          "", NULL },
@@ -541,6 +551,8 @@ ChatCommand * ChatHandler::getCommandTable()
         { "spell_scripts",               SEC_ADMINISTRATOR, true,  &ChatHandler::HandleReloadSpellScriptsCommand,            "", NULL },
         { "spell_target_position",       SEC_ADMINISTRATOR, true,  &ChatHandler::HandleReloadSpellTargetPositionCommand,     "", NULL },
         { "spell_threats",               SEC_ADMINISTRATOR, true,  &ChatHandler::HandleReloadSpellThreatsCommand,            "", NULL },
+        { "spell_disabled",              SEC_ADMINISTRATOR, true,  &ChatHandler::HandleReloadSpellDisabledCommand,           "", NULL },
+        { "anticheat",                   SEC_ADMINISTRATOR, true,  &ChatHandler::HandleReloadAntiCheatCommand,               "", NULL },
 
         { NULL,                          0,                 false, NULL,                                                     "", NULL }
     };

@@ -25,7 +25,6 @@
 #include "ace/Thread_Mutex.h"
 #include <list>
 #include <map>
-#include "Utilities/UnorderedMapSet.h"
 #include "Database/DatabaseEnv.h"
 #include "DBCEnums.h"
 #include "DBCStores.h"
@@ -53,6 +52,17 @@ struct MapCellObjectGuids
 typedef UNORDERED_MAP<uint32/*cell_id*/,MapCellObjectGuids> MapCellObjectGuidsMap;
 
 class MapPersistentStateManager;
+
+// Instance Reset Schedule is calculated from this point in time.
+// 2005-12-28 10:00:00 - 10:00:00 = 2005-12-28 00:00:00
+// We will add X hours to this value, taking X from config (10 default).
+#define INSTANCE_RESET_SCHEDULE_START_TIME  1135717200
+#define INSTANCE_MAX_RESET_OFFSET  7*DAY
+/*
+    Holds the information necessary for creating a new map for non-instanceable maps
+
+    As object Used for non-instanceable Map only
+*/
 
 class MapPersistentState
 {
@@ -297,7 +307,7 @@ class DungeonResetScheduler
         }
 
         static uint32 GetMaxResetTimeFor(MapDifficulty const* mapDiff);
-        static time_t CalculateNextResetTime(MapDifficulty const* mapDiff, time_t prevResetTime);
+        static time_t CalculateNextResetTime(uint32 mapId, Difficulty difficulty, time_t prevResetTime);
     public:                                                 // modifiers
         void SetResetTimeFor(uint32 mapid, Difficulty d, time_t t)
         {
@@ -361,7 +371,7 @@ class MANGOS_DLL_DECL MapPersistentStateManager : public MaNGOS::Singleton<MapPe
         typedef UNORDERED_MAP<uint32 /*InstanceId or MapId*/, MapPersistentState*> PersistentStateMap;
 
         //  called by scheduler for DungeonPersistentStates
-        void _ResetOrWarnAll(uint32 mapid, Difficulty difficulty, bool warn, uint32 timeleft);
+        void _ResetOrWarnAll(uint32 mapid, Difficulty difficulty, bool warn, time_t resetTime);
         void _ResetInstance(uint32 mapid, uint32 instanceId);
         void _CleanupExpiredInstancesAtTime(time_t t);
 

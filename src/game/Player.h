@@ -38,6 +38,7 @@
 #include "BattleGround.h"
 #include "DBCStores.h"
 #include "SharedDefines.h"
+#include "AntiCheat.h"
 
 #include<string>
 #include<vector>
@@ -47,7 +48,6 @@ class Channel;
 class DynamicObject;
 class Creature;
 class PlayerMenu;
-class Transport;
 class UpdateMask;
 class SpellCastTargets;
 class PlayerSocial;
@@ -371,12 +371,14 @@ struct RuneInfo
     uint8  BaseRune;
     uint8  CurrentRune;
     uint16 Cooldown;                                        // msec
+    uint32 ConvertedBy;
 };
 
 struct Runes
 {
     RuneInfo runes[MAX_RUNES];
     uint8 runeState;                                        // mask of available runes
+    uint8 needConvert;                                      // mask of runes that need to be converted
 
     void SetRuneState(uint8 index, bool set = true)
     {
@@ -384,6 +386,17 @@ struct Runes
             runeState |= (1 << index);                      // usable
         else
             runeState &= ~(1 << index);                     // on cooldown
+    }
+
+    bool IsRuneNeedsConvert(uint8 index)
+    {
+        if (!needConvert)
+            return false;
+
+        if (needConvert & (1 << index))
+            return true;
+        else
+            return false;
     }
 };
 
@@ -825,6 +838,32 @@ enum TransferAbortReason
     TRANSFER_ABORT_MAP_NOT_ALLOWED              = 0x10,     // Map can't be entered at this time.
 };
 
+enum ReferAFriendError
+{
+    ERR_REFER_A_FRIEND_NONE                          = 0x00,
+    ERR_REFER_A_FRIEND_NOT_REFERRED_BY               = 0x01,
+    ERR_REFER_A_FRIEND_TARGET_TOO_HIGH               = 0x02,
+    ERR_REFER_A_FRIEND_INSUFFICIENT_GRANTABLE_LEVELS = 0x03,
+    ERR_REFER_A_FRIEND_TOO_FAR                       = 0x04,
+    ERR_REFER_A_FRIEND_DIFFERENT_FACTION             = 0x05,
+    ERR_REFER_A_FRIEND_NOT_NOW                       = 0x06,
+    ERR_REFER_A_FRIEND_GRANT_LEVEL_MAX_I             = 0x07,
+    ERR_REFER_A_FRIEND_NO_TARGET                     = 0x08,
+    ERR_REFER_A_FRIEND_NOT_IN_GROUP                  = 0x09,
+    ERR_REFER_A_FRIEND_SUMMON_LEVEL_MAX_I            = 0x0A,
+    ERR_REFER_A_FRIEND_SUMMON_COOLDOWN               = 0x0B,
+    ERR_REFER_A_FRIEND_INSUF_EXPAN_LVL               = 0x0C,
+    ERR_REFER_A_FRIEND_SUMMON_OFFLINE_S              = 0x0D
+};
+
+enum AccountLinkedState
+{
+    STATE_NOT_LINKED = 0x00,
+    STATE_REFER      = 0x01,
+    STATE_REFERRAL   = 0x02,
+    STATE_DUAL       = 0x04,
+};
+
 enum InstanceResetWarningType
 {
     RAID_INSTANCE_WARNING_HOURS     = 1,                    // WARNING! %s is scheduled to reset in %d hour(s).
@@ -922,6 +961,7 @@ enum PlayerLoginQueryIndex
     PLAYER_LOGIN_QUERY_LOADTALENTS,
     PLAYER_LOGIN_QUERY_LOADWEEKLYQUESTSTATUS,
     PLAYER_LOGIN_QUERY_LOADMONTHLYQUESTSTATUS,
+    PLAYER_LOGIN_QUERY_LOADRANDOMBG,
 
     MAX_PLAYER_LOGIN_QUERY
 };
@@ -1155,7 +1195,7 @@ class MANGOS_DLL_SPEC Player : public Unit
         std::string afkMsg;
         std::string dndMsg;
 
-        uint32 GetBarberShopCost(uint8 newhairstyle, uint8 newhaircolor, uint8 newfacialhair);
+        uint32 GetBarberShopCost(uint8 newhairstyle, uint8 newhaircolor, uint8 newfacialhair, uint8 newskintone);
 
         PlayerSocial *GetSocial() { return m_social; }
 
@@ -1291,7 +1331,7 @@ class MANGOS_DLL_SPEC Player : public Unit
         bool HasItemTotemCategory( uint32 TotemCategory ) const;
         uint8 CanUseItem( ItemPrototype const *pItem ) const;
         uint8 CanUseAmmo( uint32 item ) const;
-        Item* StoreNewItem( ItemPosCountVec const& pos, uint32 item, bool update,int32 randomPropertyId = 0 );
+        Item* StoreNewItem( ItemPosCountVec const& pos, uint32 item, bool update,int32 randomPropertyId = 0, AllowedLooterSet* allowedLooters = NULL );
         Item* StoreItem( ItemPosCountVec const& pos, Item *pItem, bool update );
         Item* EquipNewItem( uint16 pos, uint32 item, bool update );
         Item* EquipItem( uint16 pos, Item *pItem, bool update );
@@ -1366,7 +1406,9 @@ class MANGOS_DLL_SPEC Player : public Unit
         void TradeCancel(bool sendback);
 
         void UpdateEnchantTime(uint32 time);
-        void UpdateItemDuration(uint32 time, bool realtimeonly=false);
+        void UpdateSoulboundTradeItems();
+        void RemoveTradeableItem(Item* item);
+        void UpdateItemDuration(uint32 time, bool realtimeonly = false);
         void AddEnchantmentDurations(Item *item);
         void RemoveEnchantmentDurations(Item *item);
         void RemoveAllEnchantments(EnchantmentSlot slot);
@@ -1527,6 +1569,8 @@ class MANGOS_DLL_SPEC Player : public Unit
 
         bool LoadFromDB(ObjectGuid guid, SqlQueryHolder *holder);
 
+        bool MinimalLoadFromDB(uint64 lowguid);
+
         static uint32 GetZoneIdFromDB(ObjectGuid guid);
         static uint32 GetLevelFromDB(ObjectGuid guid);
         static bool   LoadPositionFromDB(ObjectGuid guid, uint32& mapid, float& x,float& y,float& z,float& o, bool& in_flight);
@@ -1586,12 +1630,10 @@ class MANGOS_DLL_SPEC Player : public Unit
         ObjectGuid const& GetSelectionGuid( ) const { return m_curSelectionGuid; }
         void SetSelectionGuid(ObjectGuid guid) { m_curSelectionGuid = guid; SetTargetGuid(guid); }
 
-        uint8 GetComboPoints() { return m_comboPoints; }
-        ObjectGuid const& GetComboTargetGuid() const { return m_comboTargetGuid; }
+        void SendComboPoints(ObjectGuid targetGuid, uint8 combopoints);
+        void SendPetComboPoints(Unit* pet, ObjectGuid targetGuid, uint8 combopoints);
 
-        void AddComboPoints(Unit* target, int8 count);
-        void ClearComboPoints();
-        void SendComboPoints();
+        void SendCalendarResult(CalendarResponseResult result, std::string str);
 
         void SendMailResult(uint32 mailId, MailResponseType mailAction, MailResponseResult mailError, uint32 equipError = 0, uint32 item_guid = 0, uint32 item_count = 0);
         void SendNewMail();
@@ -1640,6 +1682,7 @@ class MANGOS_DLL_SPEC Player : public Unit
         void SendPetGUIDs();
         void CharmSpellInitialize();
         void PossessSpellInitialize();
+        void VehicleSpellInitialize();
         void RemovePetActionBar();
 
         bool HasSpell(uint32 spell) const;
@@ -1765,7 +1808,8 @@ class MANGOS_DLL_SPEC Player : public Unit
         static bool IsActionButtonDataValid(uint8 button, uint32 action, uint8 type, Player* player, bool msg = true);
         ActionButton* addActionButton(uint8 spec, uint8 button, uint32 action, uint8 type);
         void removeActionButton(uint8 spec, uint8 button);
-        void SendInitialActionButtons() const;
+        void SendActionButtons(uint32 state) const;
+        void SendInitialActionButtons() const { SendActionButtons(1); }
         void SendLockActionButtons() const;
         ActionButton const* GetActionButton(uint8 button);
 
@@ -1873,7 +1917,7 @@ class MANGOS_DLL_SPEC Player : public Unit
 
         void UpdateDefenseBonusesMod();
         float GetMeleeCritFromAgility();
-        float GetDodgeFromAgility();
+        void GetDodgeFromAgility(float &diminishing, float &nondiminishing);
         float GetSpellCritFromIntellect();
         float OCTRegenHPPerSpirit();
         float OCTRegenMPPerSpirit();
@@ -1908,7 +1952,7 @@ class MANGOS_DLL_SPEC Player : public Unit
 
         void BuildCreateUpdateBlockForPlayer( UpdateData *data, Player *target ) const;
         void DestroyForPlayer( Player *target, bool anim = false ) const;
-        void SendLogXPGain(uint32 GivenXP,Unit* victim,uint32 RestXP);
+        void SendLogXPGain(uint32 GivenXP,Unit* victim,uint32 BonusXP, bool ReferAFriend);
 
         // notifiers
         void SendAttackSwingCantAttack();
@@ -2210,6 +2254,9 @@ class MANGOS_DLL_SPEC Player : public Unit
         bool isTotalImmune();
         bool CanCaptureTowerPoint();
 
+        bool GetRandomWinner() { return m_IsBGRandomWinner; }
+        void SetRandomWinner(bool isWinner);
+
         /*********************************************************/
         /***                    REST SYSTEM                    ***/
         /*********************************************************/
@@ -2234,6 +2281,22 @@ class MANGOS_DLL_SPEC Player : public Unit
         void ChangeSpeakTime(int utime);
 
         /*********************************************************/
+        /*** REFER-A-FRIEND SYSTEM ***/
+        /*********************************************************/
+        void SendReferFriendError(ReferAFriendError err, Player * target = NULL);
+        ReferAFriendError GetReferFriendError(Player * target, bool summon);
+        void AccessGrantableLevel(ObjectGuid guid) { m_curGrantLevelGiverGuid = guid; }
+        bool IsAccessGrantableLevel(ObjectGuid guid) { return m_curGrantLevelGiverGuid == guid; }
+        uint32 GetGrantableLevels() { return m_GrantableLevelsCount; }
+        void ChangeGrantableLevels(uint8 increase = 0);
+        bool CheckRAFConditions();
+        AccountLinkedState GetAccountLinkedState();
+        bool IsReferAFriendLinked(Player * target);
+        void LoadAccountLinkedState();
+        std::vector<uint32> m_referredAccounts;
+        std::vector<uint32> m_referalAccounts;
+
+        /*********************************************************/
         /***                 VARIOUS SYSTEMS                   ***/
         /*********************************************************/
         bool HasMovementFlag(MovementFlags f) const;        // for script access to m_movementInfo.HasMovementFlag
@@ -2250,6 +2313,8 @@ class MANGOS_DLL_SPEC Player : public Unit
         bool isMoving() const { return m_movementInfo.HasMovementFlag(movementFlagsMask); }
         bool isMovingOrTurning() const { return m_movementInfo.HasMovementFlag(movementOrTurningFlagsMask); }
 
+        AntiCheat* GetAntiCheat() { return m_anticheat; }
+
         bool CanFly() const { return m_movementInfo.HasMovementFlag(MOVEFLAG_CAN_FLY); }
         bool IsFlying() const { return m_movementInfo.HasMovementFlag(MOVEFLAG_FLYING); }
         bool IsFreeFlying() const { return HasAuraType(SPELL_AURA_MOD_FLIGHT_SPEED_MOUNTED) || HasAuraType(SPELL_AURA_FLY); }
@@ -2260,24 +2325,14 @@ class MANGOS_DLL_SPEC Player : public Unit
         Unit* GetMover() const { return m_mover; }
         bool IsSelfMover() const { return m_mover == this; }// normal case for player not controlling other unit
 
-        void EnterVehicle(Vehicle *vehicle);
-        void ExitVehicle(Vehicle *vehicle);
-
         ObjectGuid const& GetFarSightGuid() const { return GetGuidValue(PLAYER_FARSIGHT); }
-
-        // Transports
-        Transport * GetTransport() const { return m_transport; }
-        void SetTransport(Transport * t) { m_transport = t; }
-
-        float GetTransOffsetX() const { return m_movementInfo.GetTransportPos()->x; }
-        float GetTransOffsetY() const { return m_movementInfo.GetTransportPos()->y; }
-        float GetTransOffsetZ() const { return m_movementInfo.GetTransportPos()->z; }
-        float GetTransOffsetO() const { return m_movementInfo.GetTransportPos()->o; }
-        uint32 GetTransTime() const { return m_movementInfo.GetTransportTime(); }
-        int8 GetTransSeat() const { return m_movementInfo.GetTransportSeat(); }
 
         uint32 GetSaveTimer() const { return m_nextSave; }
         void   SetSaveTimer(uint32 timer) { m_nextSave = timer; }
+
+        /** World of Warcraft Armory **/
+        void WriteWowArmoryDatabaseLog(uint32 type, uint32 data);
+        /** World of Warcraft Armory **/
 
         // Recall position
         uint32 m_recallMap;
@@ -2325,6 +2380,9 @@ class MANGOS_DLL_SPEC Player : public Unit
         void UnsummonPetTemporaryIfAny();
         void ResummonPetTemporaryUnSummonedIfAny();
         bool IsPetNeedBeTemporaryUnsummoned() const { return !IsInWorld() || !isAlive() || IsMounted() /*+in flight*/; }
+        KnownPetNames m_knownPetNames;
+        std::string GetKnownPetName(uint32 petnumber);
+        void AddKnownPetName(uint32 petnumber, std::string name);
 
         void SendCinematicStart(uint32 CinematicSequenceId);
         void SendMovieStart(uint32 MovieId);
@@ -2345,6 +2403,9 @@ class MANGOS_DLL_SPEC Player : public Unit
         BoundInstancesMap& GetBoundInstances(Difficulty difficulty) { return m_boundInstances[difficulty]; }
         void UnbindInstance(uint32 mapid, Difficulty difficulty, bool unload = false);
         void UnbindInstance(BoundInstancesMap::iterator &itr, Difficulty difficulty, bool unload = false);
+        void BindToInstance();
+        void SetPendingBind(DungeonPersistentState* save, uint32 bindTimer) { _pendingBind = save; _pendingBindTimer = bindTimer; }
+        bool HasPendingBind() const { return _pendingBind != NULL; }
         InstancePlayerBind* BindToInstance(DungeonPersistentState *save, bool permanent, bool load = false);
         void SendRaidInfo();
         void SendSavedInstances();
@@ -2392,7 +2453,20 @@ class MANGOS_DLL_SPEC Player : public Unit
         void SetBaseRune(uint8 index, RuneType baseRune) { m_runes->runes[index].BaseRune = baseRune; }
         void SetCurrentRune(uint8 index, RuneType currentRune) { m_runes->runes[index].CurrentRune = currentRune; }
         void SetRuneCooldown(uint8 index, uint16 cooldown) { m_runes->runes[index].Cooldown = cooldown; m_runes->SetRuneState(index, (cooldown == 0) ? true : false); }
-        void ConvertRune(uint8 index, RuneType newType);
+        void ConvertRune(uint8 index, RuneType newType, uint32 spellid = 0);
+        void SetConvertedBy(uint8 index, uint32 spellid) { m_runes->runes[index].ConvertedBy = spellid; }
+        void ClearConvertedBy(uint8 index) { m_runes->runes[index].ConvertedBy = 0; }
+        bool IsRuneConvertedBy(uint8 index, uint32 spellid) { return m_runes->runes[index].ConvertedBy == spellid; }
+        void SetNeedConvertRune(uint8 index, bool convert, uint32 spellid = 0)
+        {
+            if (convert)
+                m_runes->needConvert |= (1 << index);                      // need convert
+            else
+                m_runes->needConvert &= ~(1 << index);                     // removed from convert
+
+            if (spellid != 0)
+                SetConvertedBy(index, spellid);
+        }
         bool ActivateRunes(RuneType type, uint32 count);
         void ResyncRunes();
         void AddRunePower(uint8 index);
@@ -2401,8 +2475,9 @@ class MANGOS_DLL_SPEC Player : public Unit
         AchievementMgr const& GetAchievementMgr() const { return m_achievementMgr; }
         AchievementMgr& GetAchievementMgr() { return m_achievementMgr; }
         void UpdateAchievementCriteria(AchievementCriteriaTypes type, uint32 miscvalue1=0, uint32 miscvalue2=0, Unit *unit=NULL, uint32 time=0);
+        void CompletedAchievement(AchievementEntry const* entry);
+        void CompletedAchievement(uint32 uiAchievementID);
         void StartTimedAchievementCriteria(AchievementCriteriaTypes type, uint32 timedRequirementId, time_t startTime = 0);
-
 
         bool HasTitle(uint32 bitIndex) const;
         bool HasTitle(CharTitlesEntry const* title) const { return HasTitle(title->bit_index); }
@@ -2438,6 +2513,7 @@ class MANGOS_DLL_SPEC Player : public Unit
 
         BgBattleGroundQueueID_Rec m_bgBattleGroundQueueID[PLAYER_MAX_BATTLEGROUND_QUEUES];
         BGData                    m_bgData;
+        bool m_IsBGRandomWinner;
 
         /*********************************************************/
         /***                    QUEST SYSTEM                   ***/
@@ -2467,6 +2543,7 @@ class MANGOS_DLL_SPEC Player : public Unit
         void _LoadDailyQuestStatus(QueryResult *result);
         void _LoadWeeklyQuestStatus(QueryResult *result);
         void _LoadMonthlyQuestStatus(QueryResult *result);
+        void _LoadRandomBGStatus(QueryResult *result);
         void _LoadGroup(QueryResult *result);
         void _LoadSkills(QueryResult *result);
         void _LoadSpells(QueryResult *result);
@@ -2538,9 +2615,6 @@ class MANGOS_DLL_SPEC Player : public Unit
         uint32 m_ExtraFlags;
         ObjectGuid m_curSelectionGuid;
 
-        ObjectGuid m_comboTargetGuid;
-        int8 m_comboPoints;
-
         QuestStatusMap mQuestStatus;
 
         SkillStatusMap mSkillStatus;
@@ -2575,6 +2649,7 @@ class MANGOS_DLL_SPEC Player : public Unit
         int32 m_SpellModRemoveCount;
         EnchantDurationList m_enchantDuration;
         ItemDurationList m_itemDuration;
+        ItemDurationList m_itemSoulboundTradeable;
 
         ObjectGuid m_resurrectGuid;
         uint32 m_resurrectMap;
@@ -2624,7 +2699,9 @@ class MANGOS_DLL_SPEC Player : public Unit
         ////////////////////Rest System/////////////////////
 
         // Transports
-        Transport * m_transport;
+//        Transport * m_transport;
+
+        AntiCheat* m_anticheat;
 
         uint32 m_resetTalentsCost;
         time_t m_resetTalentsTime;
@@ -2651,6 +2728,11 @@ class MANGOS_DLL_SPEC Player : public Unit
         DeclinedName *m_declinedname;
         Runes *m_runes;
         EquipmentSets m_EquipmentSets;
+        // Refer-A-Friend
+        ObjectGuid m_curGrantLevelGiverGuid;
+
+        int32 m_GrantableLevelsCount;
+
     private:
         void _HandleDeadlyPoison(Unit* Target, WeaponAttackType attType, SpellEntry const *spellInfo);
         // internal common parts for CanStore/StoreItem functions
@@ -2731,6 +2813,9 @@ class MANGOS_DLL_SPEC Player : public Unit
         uint32 m_timeSyncTimer;
         uint32 m_timeSyncClient;
         uint32 m_timeSyncServer;
+
+        DungeonPersistentState* _pendingBind;
+        uint32 _pendingBindTimer;
 };
 
 void AddItemsSetItem(Player*player,Item *item);

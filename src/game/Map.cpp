@@ -138,7 +138,7 @@ template<>
 void Map::AddToGrid(Creature* obj, NGridType *grid, Cell const& cell)
 {
     // add to world object registry in grid
-    if(obj->IsPet() || obj->IsVehicle())
+    if(obj->IsPet())
     {
         (*grid)(cell.CellX(), cell.CellY()).AddWorldObject<Creature>(obj);
         obj->SetCurrentCell(cell);
@@ -182,7 +182,7 @@ template<>
 void Map::RemoveFromGrid(Creature* obj, NGridType *grid, Cell const& cell)
 {
     // remove from world object registry in grid
-    if(obj->IsPet() || obj->IsVehicle())
+    if(obj->IsPet())
     {
         (*grid)(cell.CellX(), cell.CellY()).RemoveWorldObject<Creature>(obj);
     }
@@ -1377,7 +1377,7 @@ bool DungeonMap::Add(Player *player)
 
                 // no reason crash if we can fix state
                 player->UnbindInstance(GetId(), GetDifficulty());
-            }
+          }
 
             // bind to the group or keep using the group save
             if (!groupBind)
@@ -1404,12 +1404,17 @@ bool DungeonMap::Add(Player *player)
                 }
                 // if the group/leader is permanently bound to the instance
                 // players also become permanently bound when they enter
-                if (groupBind->perm)
+                if (groupBind->perm && IsDungeon())
                 {
-                    WorldPacket data(SMSG_INSTANCE_SAVE_CREATED, 4);
-                    data << uint32(0);
+                    uint32 m_completed = 0;
+                    if (GetInstanceData())
+                        m_completed = GetInstanceData()->GetCompletedEncounters(true);
+                    WorldPacket data(SMSG_INSTANCE_LOCK_WARNING_QUERY, 9);
+                    data << uint32(60000);
+                    data << m_completed;
+                    data << uint8(0);
                     player->GetSession()->SendPacket(&data);
-                    player->BindToInstance(GetPersistanceState(), true);
+                    player->SetPendingBind(GetPersistanceState(), 60000);
                 }
             }
         }
@@ -1469,7 +1474,7 @@ bool DungeonMap::Reset(InstanceResetMethod method)
 
     if(HavePlayers())
     {
-        if(method == INSTANCE_RESET_ALL)
+        if(method == INSTANCE_RESET_ALL || method == INSTANCE_RESET_CHANGE_DIFFICULTY)
         {
             // notify the players to leave the instance so it can be reset
             for(MapRefManager::iterator itr = m_mapRefManager.begin(); itr != m_mapRefManager.end(); ++itr)
@@ -1743,7 +1748,7 @@ void Map::ScriptsProcess()
                     source = GetPet(step.sourceGuid);
                     break;
                 case HIGHGUID_VEHICLE:
-                    source = GetVehicle(step.sourceGuid);
+                    source = GetCreature(step.sourceGuid);
                     break;
                 case HIGHGUID_PLAYER:
                     source = HashMapHolder<Player>::Find(step.sourceGuid);
@@ -1776,7 +1781,7 @@ void Map::ScriptsProcess()
                     target = GetPet(step.targetGuid);
                     break;
                 case HIGHGUID_VEHICLE:
-                    target = GetVehicle(step.targetGuid);
+                    target = GetCreature(step.targetGuid);
                     break;
                 case HIGHGUID_PLAYER:
                     target = HashMapHolder<Player>::Find(step.targetGuid);
@@ -2844,7 +2849,7 @@ Player* Map::GetPlayer(ObjectGuid guid)
 }
 
 /**
- * Function return creature (non-pet and then most summoned by spell creatures, and not vehicle) that in world at CURRENT map
+ * Function return creature (non-pet and then most summoned by spell creatures) that in world at CURRENT map 
  *
  * @param guid must be creature guid (HIGHGUID_UNIT)
  */
@@ -2854,17 +2859,6 @@ Creature* Map::GetCreature(ObjectGuid guid)
 }
 
 /**
- * Function return vehicle that in world at CURRENT map
- *
- * @param guid must be vehicle guid (HIGHGUID_VEHICLE)
- */
-Vehicle* Map::GetVehicle(ObjectGuid guid)
-{
-    return m_objectsStore.find<Vehicle>(guid.GetRawValue(), (Vehicle*)NULL);
-}
-
-/**
- * Function return pet that in world at CURRENT map
  *
  * @param guid must be pet guid (HIGHGUID_PET)
  */
@@ -2895,9 +2889,9 @@ Creature* Map::GetAnyTypeCreature(ObjectGuid guid)
 {
     switch(guid.GetHigh())
     {
-        case HIGHGUID_UNIT:         return GetCreature(guid);
+        case HIGHGUID_UNIT:
+        case HIGHGUID_VEHICLE:      return GetCreature(guid);
         case HIGHGUID_PET:          return GetPet(guid);
-        case HIGHGUID_VEHICLE:      return GetVehicle(guid);
         default:                    break;
     }
 
@@ -2949,9 +2943,9 @@ WorldObject* Map::GetWorldObject(ObjectGuid guid)
     {
         case HIGHGUID_PLAYER:       return GetPlayer(guid);
         case HIGHGUID_GAMEOBJECT:   return GetGameObject(guid);
-        case HIGHGUID_UNIT:         return GetCreature(guid);
+        case HIGHGUID_UNIT:
+        case HIGHGUID_VEHICLE:      return GetCreature(guid);
         case HIGHGUID_PET:          return GetPet(guid);
-        case HIGHGUID_VEHICLE:      return GetVehicle(guid);
         case HIGHGUID_DYNAMICOBJECT:return GetDynamicObject(guid);
         case HIGHGUID_CORPSE:
         {
@@ -2970,6 +2964,14 @@ WorldObject* Map::GetWorldObject(ObjectGuid guid)
 void Map::SendObjectUpdates()
 {
     UpdateDataMapType update_players;
+
+    while(!i_objectsToClientUpdateQueue.empty())
+    {
+        if (i_objectsToClientNotUpdate.find(i_objectsToClientUpdateQueue.front()) == i_objectsToClientNotUpdate.end())
+            i_objectsToClientUpdate.insert(i_objectsToClientUpdateQueue.front());
+        i_objectsToClientUpdateQueue.pop();
+    }
+    i_objectsToClientNotUpdate.clear();
 
     while(!i_objectsToClientUpdate.empty())
     {
@@ -2993,6 +2995,7 @@ uint32 Map::GenerateLocalLowGuid(HighGuid guidhigh)
     switch(guidhigh)
     {
         case HIGHGUID_UNIT:
+        case HIGHGUID_VEHICLE:
             return m_CreatureGuids.Generate();
         case HIGHGUID_GAMEOBJECT:
             return m_GameObjectGuids.Generate();
@@ -3000,8 +3003,6 @@ uint32 Map::GenerateLocalLowGuid(HighGuid guidhigh)
             return m_DynObjectGuids.Generate();
         case HIGHGUID_PET:
             return m_PetGuids.Generate();
-        case HIGHGUID_VEHICLE:
-            return m_VehicleGuids.Generate();
         default:
             MANGOS_ASSERT(0);
     }
