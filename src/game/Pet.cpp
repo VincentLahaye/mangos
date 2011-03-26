@@ -90,7 +90,7 @@ void Pet::RemoveFromWorld()
     Unit::RemoveFromWorld();
 }
 
-bool Pet::LoadPetFromDB( Player* owner, uint32 petentry, uint32 petnumber, bool current,  float x, float y, float z )
+bool Pet::LoadPetFromDB( Player* owner, uint32 petentry, uint32 petnumber, bool current)
 {
     m_loading = true;
 
@@ -164,7 +164,23 @@ bool Pet::LoadPetFromDB( Player* owner, uint32 petentry, uint32 petnumber, bool 
         return false;
     }
 
-    if (!Create(owner->GetMap()->GenerateLocalLowGuid(HIGHGUID_PET), owner->GetMap(), owner->GetPhaseMask(), petentry, pet_number, owner))
+    if (GetPetCounter() == 1)
+        SetPetFollowAngle(PET_FOLLOW_ANGLE*3);
+    else if (GetPetCounter() == 2)
+        SetPetFollowAngle(PET_FOLLOW_ANGLE*2);
+    else
+        SetPetFollowAngle(PET_FOLLOW_ANGLE);
+
+    if (getPetType() == MINI_PET)
+        SetPetFollowAngle(M_PI_F*1.25f);
+
+    Map *map = owner->GetMap();
+
+    CreatureCreatePos pos(owner, owner->GetOrientation(), PET_FOLLOW_DIST, GetPetFollowAngle());
+
+    uint32 guid = pos.GetMap()->GenerateLocalLowGuid(HIGHGUID_PET);
+
+    if (!Create(guid, pos, petentry, pet_number, owner))
     {
         delete result;
         return false;
@@ -178,20 +194,13 @@ bool Pet::LoadPetFromDB( Player* owner, uint32 petentry, uint32 petnumber, bool 
     SetUInt32Value(UNIT_FIELD_PETEXPERIENCE, fields[5].GetUInt32());
     m_charmInfo->SetReactState(ReactStates(fields[6].GetUInt8()));
 
-    if (!SetSummonPosition( x, y, z))
-    {
-        sLog.outError("Pet (guidlow %d, entry %d) not loaded. Suggested coordinates isn't valid (X: %f Y: %f)",
-            GetGUIDLow(), GetEntry(), GetPositionX(), GetPositionY());
-        delete result;
-        return false;
-    }
 
     CreatureInfo const *cinfo = GetCreatureInfo();
 
     if (cinfo->type == CREATURE_TYPE_CRITTER)
     {
         AIM_Initialize();
-        GetMap()->Add((Creature*)this);
+        pos.GetMap()->Add((Creature*)this);
         delete result;
         return true;
     }
@@ -508,6 +517,13 @@ void Pet::Update(uint32 update_diff, uint32 diff)
                 return;
             }
 
+            if (!owner->isAlive())
+            {
+                DEBUG_LOG("Pet's %d owner died, removed. ", GetGUID());
+                Unsummon(getPetType() == HUNTER_PET ? PET_SAVE_AS_DELETED : PET_SAVE_NOT_IN_SLOT, owner);
+                return;
+            }
+
             if ((!IsWithinDistInMap(owner, GetMap()->GetVisibilityDistance()) && !owner->GetCharmGuid().IsEmpty()) || (isControlled() && owner->GetPetGuid().IsEmpty()))
             {
                 DEBUG_LOG("Pet %d lost control, removed. Owner = %d, distance = %d, pet GUID = ", GetGUID(),owner->GetGUID(), GetDistance2d(owner), owner->GetPetGuid().GetCounter());
@@ -767,11 +783,14 @@ void Pet::GivePetLevel(uint32 level)
 
 bool Pet::CreateBaseAtCreature(Creature* creature, Unit* owner)
 {
-    if(!creature || !owner)
+    if(!creature)
     {
         sLog.outError("CRITICAL: NULL pointer passed into CreateBaseAtCreature()");
         return false;
     }
+
+    if(!owner)
+        return false;
 
     CreatureInfo const *cinfo = creature->GetCreatureInfo();
     if(!cinfo)
@@ -780,19 +799,15 @@ bool Pet::CreateBaseAtCreature(Creature* creature, Unit* owner)
         return false;
     }
 
+    CreatureCreatePos pos(creature, creature->GetOrientation());
+
     BASIC_LOG("Create new pet from creature %d ", creature->GetEntry());
 
-    Relocate(creature->GetPositionX(), creature->GetPositionY(), creature->GetPositionZ(), creature->GetOrientation());
+    BASIC_LOG("Create pet");
 
-    if (!Create(owner, creature->GetEntry()))
+    if (!Create(0, pos, creature->GetEntry(), 0, owner))
         return false;
 
-    if (!SetSummonPosition(creature->GetPositionX(), creature->GetPositionY(), creature->GetPositionZ()))
-    {
-        sLog.outError("Pet (guidlow %d, entry %d) not created base at creature. Suggested coordinates isn't valid (X: %f Y: %f)",
-            GetGUIDLow(), GetEntry(), GetPositionX(), GetPositionY());
-        return false;
-    }
 
     if(CreatureFamilyEntry const* cFamily = sCreatureFamilyStore.LookupEntry(cinfo->family))
         SetName(cFamily->Name[sWorld.GetDefaultDbcLocale()]);
@@ -1189,21 +1204,21 @@ void Pet::_LoadAuras(uint32 timediff)
             uint64 caster_guid = fields[0].GetUInt64();
             uint32 item_lowguid = fields[1].GetUInt32();
             uint32 spellid = fields[2].GetUInt32();
-            uint32 stackcount= fields[3].GetUInt32();
-            int32 remaincharges = (int32)fields[4].GetUInt32();
+            uint32 stackcount = fields[3].GetUInt32();
+            uint32 remaincharges = fields[4].GetUInt32();
             int32 damage[MAX_EFFECT_INDEX];
             int32 maxduration[MAX_EFFECT_INDEX];
             int32 remaintime[MAX_EFFECT_INDEX];
             for (int32 i = 0; i < MAX_EFFECT_INDEX; ++i)
             {
-                damage[i]  = (int32)fields[i+5].GetUInt32();
-                maxduration[i] = (int32)fields[i+8].GetUInt32();
-                remaintime[i] = (int32)fields[i+11].GetUInt32();
+                damage[i] = fields[i+5].GetInt32();
+                maxduration[i] = fields[i+8].GetInt32();
+                remaintime[i] = fields[i+11].GetInt32();
             }
-            uint32 effIndexMask = (int32)fields[14].GetUInt32();
+            uint32 effIndexMask = fields[14].GetUInt32();
 
             SpellEntry const* spellproto = sSpellStore.LookupEntry(spellid);
-            if(!spellproto)
+            if (!spellproto)
             {
                 sLog.outError("Unknown spell (spellid %u), ignore.",spellid);
                 continue;
@@ -1215,16 +1230,21 @@ void Pet::_LoadAuras(uint32 timediff)
 
             // prevent wrong values of remaincharges
             uint32 procCharges = spellproto->procCharges;
-            if(procCharges)
+            if (procCharges)
             {
-                if(remaincharges <= 0 || remaincharges > (int32)procCharges)
+                if (remaincharges <= 0 || remaincharges > procCharges)
                     remaincharges = procCharges;
             }
             else
                 remaincharges = 0;
 
-            if (spellproto->StackAmount < stackcount)
+            if (!spellproto->StackAmount)
+                stackcount = 1;
+            else if (spellproto->StackAmount < stackcount)
                 stackcount = spellproto->StackAmount;
+            else if (!stackcount)
+                stackcount = 1;
+
 
             SpellAuraHolder *holder = CreateSpellAuraHolder(spellproto, this, NULL);
             for (int32 i = 0; i < MAX_EFFECT_INDEX; ++i)
@@ -1893,39 +1913,41 @@ bool Pet::IsPermanentPetFor(Player* owner)
     }
 }
 
-bool Pet::Create(Unit* owner, uint32 Entry)
+bool Pet::Create(uint32 guidlow, CreatureCreatePos& cPos, uint32 Entry, uint32 pet_number, Unit* owner)
 {
-    return Create(owner->GetMap()->GenerateLocalLowGuid(HIGHGUID_PET), owner->GetMap(),
-            owner->GetPhaseMask(), Entry, sObjectMgr.GeneratePetNumber(), owner);
-}
-
-bool Pet::Create(uint32 guidlow, Map *map, uint32 phaseMask, uint32 Entry, uint32 pet_number, Unit* owner)
-{
-
     if (!owner)
         return false;
 
-    if (map)
-        SetMap(map);
-    else
+    CreatureInfo const* cInfo = ObjectMgr::GetCreatureTemplate(Entry);
+
+    if (!cInfo)
         return false;
 
     m_loading = true;
 
+    SetMap(cPos.GetMap());
+    SetPhaseMask(cPos.GetPhaseMask(), false);
+
     if (!guidlow)
-        guidlow = map->GenerateLocalLowGuid(HIGHGUID_PET);
+        guidlow = cPos.GetMap()->GenerateLocalLowGuid(HIGHGUID_PET);
 
     if (!pet_number)
         pet_number = sObjectMgr.GeneratePetNumber();
 
     Object::_Create(ObjectGuid(HIGHGUID_PET, pet_number, guidlow));
 
-    m_originalEntry = Entry;
-
-    if(!InitEntry(Entry))
+    if (!InitEntry(Entry))
         return false;
 
-    SetPhaseMask(phaseMask,false);
+    cPos.SelectFinalPoint(this);
+
+    if (!cPos.Relocate(this))
+        return false;
+
+
+    SetSheath(SHEATH_STATE_MELEE);
+
+    m_originalEntry = Entry;
 
     if(owner->GetTypeId() == TYPEID_PLAYER)
         m_charmInfo->SetPetNumber(pet_number, IsPermanentPetFor((Player*)owner));
@@ -1940,9 +1962,6 @@ bool Pet::Create(uint32 guidlow, Map *map, uint32 phaseMask, uint32 Entry, uint3
 
     if (GetCreateSpellID())
         SetUInt32Value(UNIT_CREATED_BY_SPELL, GetCreateSpellID());
-
-
-    SetSheath(SHEATH_STATE_MELEE);
 
     if(getPetType() == MINI_PET)                            // always non-attackable
         SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NON_ATTACKABLE);
@@ -2070,44 +2089,6 @@ void Pet::ApplyModeFlags(PetModeFlags mode, bool apply)
     ((Player*)owner)->GetSession()->SendPacket(&data);
 }
 
-bool Pet::SetSummonPosition(float x, float y, float z)
-{
-    Unit* owner = GetOwner();
-
-    if (!owner)
-        return false;
-
-    float px, py, pz;
-
-    // Summon location setting
-    if (GetPetCounter() == 1)
-        SetPetFollowAngle(PET_FOLLOW_ANGLE*3);
-    else if (GetPetCounter() == 2)
-        SetPetFollowAngle(PET_FOLLOW_ANGLE*2);
-    else
-        SetPetFollowAngle(PET_FOLLOW_ANGLE);
-
-    if (getPetType() == MINI_PET)
-        SetPetFollowAngle(M_PI_F*1.25f);
-
-
-    if ( x == 0.0f && y == 0.0f )
-        owner->GetClosePoint(x, y, z, GetObjectBoundingRadius()*4, PET_FOLLOW_DIST, GetPetFollowAngle());
-
-    GetRandomPoint(x, y, z, GetObjectBoundingRadius()*4, px, py, pz);
-
-    UpdateAllowedPositionZ(px, py, pz);
-
-    Relocate(px, py, pz, -owner->GetOrientation());
-
-    SetSummonPoint(px, py, pz, -owner->GetOrientation());
-
-    if (!IsPositionValid()) 
-        return false;
-    else
-        return true;
-}
-
 void Pet::ApplyStatScalingBonus(Stats stat, bool apply)
 {
     if(stat > STAT_SPIRIT || stat < STAT_STRENGTH )
@@ -2156,7 +2137,7 @@ void Pet::ApplyStatScalingBonus(Stats stat, bool apply)
         SpellEffectIndex i = _aura->GetEffIndex();
 
         if (Stats(spellproto->EffectMiscValue[i]) == stat
-                && spellproto->EffectBasePoints[i] == 0)
+            && (spellproto->AttributesEx4 & SPELL_ATTR_EX4_PET_SCALING_AURA))
         {
             SetCanModifyStats(false);
             if (ReapplyScalingAura(holder, spellproto, i, basePoints))
@@ -2219,7 +2200,7 @@ void Pet::ApplyResistanceScalingBonus(uint32 school, bool apply)
 
         SpellEffectIndex i = _aura->GetEffIndex();
 
-        if (spellproto->EffectBasePoints[i] == 0
+        if ((spellproto->AttributesEx4 & SPELL_ATTR_EX4_PET_SCALING_AURA)
             && (spellproto->EffectMiscValue[i] & (1 << SpellSchools(school))))
         {
             SetCanModifyStats(false);
@@ -2333,7 +2314,7 @@ void Pet::ApplyAttackPowerScalingBonus(bool apply)
 
         SpellEffectIndex i = _aura->GetEffIndex();
 
-        if (spellproto->EffectBasePoints[i] == 0)
+        if (spellproto->AttributesEx4 & SPELL_ATTR_EX4_PET_SCALING_AURA)
         {
             SetCanModifyStats(false);
             if (ReapplyScalingAura(holder, spellproto, i, basePoints))
@@ -2423,8 +2404,8 @@ void Pet::ApplyDamageScalingBonus(bool apply)
 
         SpellEffectIndex i = _aura->GetEffIndex();
                                                                             // First scan aura with 127 mask
-        if (spellproto->EffectBasePoints[i] == 0
-                && spellproto->EffectMiscValue[i] == SPELL_SCHOOL_MASK_ALL)
+        if ((spellproto->AttributesEx4 & SPELL_ATTR_EX4_PET_SCALING_AURA)
+            && spellproto->EffectMiscValue[i] == SPELL_SCHOOL_MASK_ALL)
         {
             SetCanModifyStats(false);
             if (ReapplyScalingAura(holder, spellproto, i, basePoints))
@@ -2531,7 +2512,7 @@ void Pet::ApplySpellDamageScalingBonus(bool apply)
 
         SpellEffectIndex i = _aura->GetEffIndex();
 
-        if (spellproto->EffectBasePoints[i] == 0
+        if ((spellproto->AttributesEx4 & SPELL_ATTR_EX4_PET_SCALING_AURA)
             && spellproto->EffectMiscValue[i] == SPELL_SCHOOL_MASK_MAGIC)
         {
             SetCanModifyStats(false);
@@ -2606,7 +2587,7 @@ void Pet::ApplyHitScalingBonus(bool apply)
 
         SpellEffectIndex i = _aura->GetEffIndex();
 
-        if (spellproto->EffectBasePoints[i] == 0)
+        if (spellproto->AttributesEx4 & SPELL_ATTR_EX4_PET_SCALING_AURA)
         {
             SetCanModifyStats(false);
             if (ReapplyScalingAura(holder, spellproto, i, basePoints))
@@ -2660,7 +2641,7 @@ void Pet::ApplySpellHitScalingBonus(bool apply)
 
         SpellEffectIndex i = _aura->GetEffIndex();
 
-        if (spellproto->EffectBasePoints[i] == 0)
+        if (spellproto->AttributesEx4 & SPELL_ATTR_EX4_PET_SCALING_AURA)
         {
             SetCanModifyStats(false);
             if (ReapplyScalingAura(holder, spellproto, i, basePoints))
@@ -2712,7 +2693,7 @@ void Pet::ApplyExpertizeScalingBonus(bool apply)
 
         SpellEffectIndex i = _aura->GetEffIndex();
 
-        if (spellproto->EffectBasePoints[i] == 0)
+        if (spellproto->AttributesEx4 & SPELL_ATTR_EX4_PET_SCALING_AURA)
         {
             SetCanModifyStats(false);
             if (ReapplyScalingAura(holder, spellproto, i, basePoints))
@@ -2766,7 +2747,7 @@ void Pet::ApplyPowerregenScalingBonus(bool apply)
 
         SpellEffectIndex i = _aura->GetEffIndex();
 
-        if (spellproto->EffectBasePoints[i] == 0)
+        if (spellproto->AttributesEx4 & SPELL_ATTR_EX4_PET_SCALING_AURA)
         {
             SetCanModifyStats(false);
             if (ReapplyScalingAura(holder, spellproto, i, basePoints))
@@ -2791,6 +2772,16 @@ bool Pet::Summon()
 
     if (!map)
         return false;
+
+    if (GetPetCounter() == 1)
+        SetPetFollowAngle(PET_FOLLOW_ANGLE*3);
+    else if (GetPetCounter() == 2)
+        SetPetFollowAngle(PET_FOLLOW_ANGLE*2);
+    else
+        SetPetFollowAngle(PET_FOLLOW_ANGLE);
+
+    if (getPetType() == MINI_PET)
+        SetPetFollowAngle(M_PI_F*1.25f);
 
     uint16 level = getLevel() ? getLevel() : owner->getLevel();;
 

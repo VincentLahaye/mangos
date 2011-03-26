@@ -149,8 +149,7 @@ ObjectMgr::ObjectMgr() :
     m_EquipmentSetIds("Equipment set ids"),
     m_GuildIds("Guild ids"),
     m_MailIds("Mail ids"),
-    m_PetNumbers("Pet numbers"),
-    m_GroupIds("Group ids")
+    m_PetNumbers("Pet numbers")
 {
     // Only zero condition left, others will be added while loading DB tables
     mConditions.resize(1);
@@ -194,7 +193,8 @@ ObjectMgr::~ObjectMgr()
 
 Group* ObjectMgr::GetGroupById(uint32 id) const
 {
-    GroupMap::const_iterator itr = mGroupMap.find(id);
+    ObjectGuid guid(HIGHGUID_GROUP,id);
+    GroupMap::const_iterator itr = mGroupMap.find(guid);
     if (itr != mGroupMap.end())
         return itr->second;
 
@@ -2435,7 +2435,7 @@ void ObjectMgr::LoadItemPrototypes()
 
 void ObjectMgr::LoadItemConverts()
 {
-    m_ItemRequiredTarget.clear();                           // needed for reload case
+    m_ItemConvert.clear();                                  // needed for reload case
 
     uint32 count = 0;
 
@@ -3858,8 +3858,8 @@ void ObjectMgr::LoadGroups()
         "SELECT group_instance.leaderGuid, map, instance, permanent, instance.difficulty, resettime, "
         // 6
         "(SELECT COUNT(*) FROM character_instance WHERE guid = group_instance.leaderGuid AND instance = group_instance.instance AND permanent = 1 LIMIT 1), "
-        // 7
-        " groups.groupId "
+        // 7              8
+        " groups.groupId, instance.encountersMask "
         "FROM group_instance LEFT JOIN instance ON instance = id LEFT JOIN groups ON groups.leaderGUID = group_instance.leaderGUID ORDER BY leaderGuid"
     );
 
@@ -3884,6 +3884,7 @@ void ObjectMgr::LoadGroups()
             Difficulty diff = (Difficulty)fields[4].GetUInt8();
             uint32 groupId = fields[7].GetUInt32();
             uint64 resetTime = fields[5].GetUInt64();
+            uint32 encountersMask = fields[8].GetUInt32();
 
             if (!group || group->GetId() != groupId)
             {
@@ -3916,7 +3917,7 @@ void ObjectMgr::LoadGroups()
                 sLog.outErrorDb("ObjectMgr::Wrong reset time in group_instance corrected to: %d", resetTime);
             }
 
-            DungeonPersistentState *state = (DungeonPersistentState*)sMapPersistentStateMgr.AddPersistentState(mapEntry, fields[2].GetUInt32(), Difficulty(diff), (time_t)resetTime, (fields[6].GetUInt32() == 0), true);
+            DungeonPersistentState *state = (DungeonPersistentState*)sMapPersistentStateMgr.AddPersistentState(mapEntry, fields[2].GetUInt32(), Difficulty(diff), (time_t)resetTime, (fields[6].GetUInt32() == 0), true, true, encountersMask);
             group->BindToInstance(state, fields[3].GetBool(), true);
         }while( result->NextRow() );
         delete result;
@@ -4385,7 +4386,8 @@ void ObjectMgr::LoadQuests()
             }
         }
 
-        for(int j = 0; j < QUEST_REWARD_CHOICES_COUNT; ++j )
+        bool choice_found = false;
+        for(int j = QUEST_REWARD_CHOICES_COUNT-1; j >=0; --j )
         {
             if (uint32 id = qinfo->RewChoiceItemId[j])
             {
@@ -4395,6 +4397,8 @@ void ObjectMgr::LoadQuests()
                         qinfo->GetQuestId(),j+1,id,id);
                     qinfo->RewChoiceItemId[j] = 0;          // no changes, quest will not reward this
                 }
+                else
+                    choice_found = true;
 
                 if (!qinfo->RewChoiceItemCount[j])
                 {
@@ -4402,6 +4406,14 @@ void ObjectMgr::LoadQuests()
                         qinfo->GetQuestId(),j+1,id,j+1);
                     // no changes, quest can't be done
                 }
+            }
+            else if (choice_found)                          // client crash if have gap in item reward choices
+            {
+                sLog.outErrorDb("Quest %u has `RewChoiceItemId%d` = 0 but `RewChoiceItemId%d` = %u, client can crash at like data.",
+                    qinfo->GetQuestId(),j+1,j+2,qinfo->RewChoiceItemId[j+1]);
+                // fill gap by clone later filled choice
+                qinfo->RewChoiceItemId[j] = qinfo->RewChoiceItemId[j+1];
+                qinfo->RewChoiceItemCount[j] = qinfo->RewChoiceItemCount[j+1];
             }
             else if (qinfo->RewChoiceItemCount[j]>0)
             {
@@ -5825,66 +5837,6 @@ AreaTrigger const* ObjectMgr::GetMapEntranceTrigger(uint32 Map) const
     return NULL;
 }
 
-void ObjectMgr::PackGroupIds()
-{
-    // this routine renumbers groups in such a way so they start from 1 and go up
-
-    // obtain set of all groups
-    std::set<uint32> groupIds;
-
-    // all valid ids are in the instance table
-    // any associations to ids not in this table are assumed to be
-    // cleaned already in CleanupInstances
-    QueryResult *result = CharacterDatabase.Query("SELECT groupId FROM groups");
-    if( result )
-    {
-        do
-        {
-            Field *fields = result->Fetch();
-
-            uint32 id = fields[0].GetUInt32();
-
-            if (id == 0)
-            {
-                CharacterDatabase.BeginTransaction();
-                CharacterDatabase.PExecute("DELETE FROM groups WHERE groupId = '%u'", id);
-                CharacterDatabase.PExecute("DELETE FROM group_member WHERE groupId = '%u'", id);
-                CharacterDatabase.CommitTransaction();
-                continue;
-            }
-
-            groupIds.insert(id);
-        }
-        while (result->NextRow());
-        delete result;
-    }
-
-    barGoLink bar( groupIds.size() + 1);
-    bar.step();
-
-    uint32 groupId = 1;
-    // we do assume std::set is sorted properly on integer value
-    for (std::set<uint32>::iterator i = groupIds.begin(); i != groupIds.end(); ++i)
-    {
-        if (*i != groupId)
-        {
-            // remap group id
-            CharacterDatabase.BeginTransaction();
-            CharacterDatabase.PExecute("UPDATE groups SET groupId = '%u' WHERE groupId = '%u'", groupId, *i);
-            CharacterDatabase.PExecute("UPDATE group_member SET groupId = '%u' WHERE groupId = '%u'", groupId, *i);
-            CharacterDatabase.CommitTransaction();
-        }
-
-        ++groupId;
-        bar.step();
-    }
-
-    m_GroupIds.Set(groupId);
-
-    sLog.outString( ">> Group Ids remapped, next group id is %u", groupId );
-    sLog.outString();
-}
-
 void ObjectMgr::SetHighestGuids()
 {
     QueryResult *result = CharacterDatabase.Query( "SELECT MAX(guid) FROM characters" );
@@ -5975,7 +5927,7 @@ void ObjectMgr::SetHighestGuids()
     result = CharacterDatabase.Query( "SELECT MAX(groupId) FROM groups" );
     if (result)
     {
-        m_GroupIds.Set((*result)[0].GetUInt32()+1);
+        m_GroupGuids.Set((*result)[0].GetUInt32()+1);
         delete result;
     }
 }
@@ -9101,12 +9053,12 @@ void ObjectMgr::RemoveGuild( uint32 Id )
 
 void ObjectMgr::AddGroup( Group* group )
 {
-    mGroupMap[group->GetId()] = group ;
+    mGroupMap[group->GetObjectGuid()] = group ;
 }
 
 void ObjectMgr::RemoveGroup( Group* group )
 {
-    mGroupMap.erase(group->GetId());
+    mGroupMap.erase(group->GetObjectGuid());
 }
 
 void ObjectMgr::AddArenaTeam( ArenaTeam* arenaTeam )
@@ -9242,3 +9194,76 @@ GameObjectDataPair const* FindGOData::GetResult() const
 
     return i_anyData;
 }
+
+void ObjectMgr::LoadInstanceEncounters()
+{
+    QueryResult* result = WorldDatabase.Query("SELECT entry, creditType, creditEntry, lastEncounterDungeon FROM instance_encounters");
+
+    uint32 count = 0;
+    if (result)
+    {
+
+        std::map<uint32, DungeonEncounterEntry const*> dungeonLastBosses;
+        do
+        {
+            Field* fields = result->Fetch();
+            uint32 entry = fields[0].GetUInt32();
+            DungeonEncounterEntry const* dungeonEncounter = sDungeonEncounterStore.LookupEntry(entry);
+            if (!dungeonEncounter)
+            {
+                sLog.outErrorDb("Table `instance_encounters` has an invalid encounter id %u, skipped!", entry);
+                continue;
+            }
+
+            uint8 creditType = fields[1].GetUInt8();
+            uint32 creditEntry = fields[2].GetUInt32();
+
+            switch (creditType)
+            {
+                case ENCOUNTER_CREDIT_KILL_CREATURE:
+                    {
+                        CreatureInfo const* cInfo = sCreatureStorage.LookupEntry<CreatureInfo>(creditEntry);
+                        if (!cInfo)
+                        {
+                            sLog.outErrorDb("Table `instance_encounters` has an invalid creature (entry %u) linked to the encounter %u (%s), skipped!", creditEntry, entry, dungeonEncounter->encounterName[0]);
+                            continue;
+                        }
+                    }
+                    break;
+                case ENCOUNTER_CREDIT_CAST_SPELL:
+                    if (!sSpellStore.LookupEntry(creditEntry))
+                    {
+                        sLog.outErrorDb("Table `instance_encounters` has an invalid spell (entry %u) linked to the encounter %u (%s), skipped!", creditEntry, entry, dungeonEncounter->encounterName[0]);
+                        continue;
+                    }
+                    break;
+                default:
+                    sLog.outErrorDb("Table `instance_encounters` has an invalid credit type (%u) for encounter %u (%s), skipped!", creditType, entry, dungeonEncounter->encounterName[0]);
+                    continue;
+            }
+
+            uint32 lastEncounterDungeon = fields[3].GetUInt32();
+
+            std::map<uint32, DungeonEncounterEntry const*>::const_iterator itr = dungeonLastBosses.find(lastEncounterDungeon);
+
+            if (lastEncounterDungeon)
+            {
+                if (itr != dungeonLastBosses.end())
+                {
+                    sLog.outErrorDb("Table `instance_encounters` specified encounter %u (%s) as last encounter but %u (%s) is already marked as one, skipped!", entry, dungeonEncounter->encounterName[0], itr->second->Id, itr->second->encounterName[0]);
+                    continue;
+                }
+
+                dungeonLastBosses[lastEncounterDungeon] = dungeonEncounter;
+            }
+
+            DungeonEncounterList& encounters = mDungeonEncounters[MAKE_PAIR32(dungeonEncounter->mapId, dungeonEncounter->Difficulty)];
+            encounters.push_back(new DungeonEncounter(dungeonEncounter, EncounterCreditType(creditType), creditEntry, lastEncounterDungeon));
+            ++count;
+        } while (result->NextRow());
+    }
+
+    sLog.outString(">> Loaded %u instance encounters", count);
+    sLog.outString();
+}
+
