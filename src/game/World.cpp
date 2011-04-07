@@ -64,6 +64,7 @@
 #include "Util.h"
 #include "CharacterDatabaseCleaner.h"
 #include "AuctionHouseBot.h"
+#include "LFGMgr.h"
 
 INSTANTIATE_SINGLETON_1( World );
 
@@ -268,7 +269,12 @@ World::AddSession_ (WorldSession* s)
         float popu = float(GetActiveSessionCount());        // updated number of users on the server
         popu /= pLimit;
         popu *= 2;
-        LoginDatabase.PExecute ("UPDATE realmlist SET population = '%f' WHERE id = '%u'", popu, realmID);
+
+        static SqlStatementID id;
+
+        SqlStatement stmt = LoginDatabase.CreateStatement(id, "UPDATE realmlist SET population = ? WHERE id = ?");
+        stmt.PExecute(popu, realmID);
+
         DETAIL_LOG("Server Population (%f).", popu);
     }
 }
@@ -592,6 +598,11 @@ void World::LoadConfigSettings(bool reload)
     setConfig(CONFIG_FLOAT_RATE_RAF_XP, "Rate.RAF.XP", 3.0f);
     setConfig(CONFIG_FLOAT_RATE_RAF_LEVELPERLEVEL, "Rate.RAF.XP", 0.5f);
 
+
+    setConfig(CONFIG_BOOL_LFG_ENABLE, "LFG.Enable",false);
+    setConfigMinMax(CONFIG_UINT32_LFG_MAXKICKS, "LFG.MaxKicks", 5, 1, getConfig(CONFIG_UINT32_LFG_MAXKICKS));
+    setConfigMinMax(CONFIG_UINT32_LFG_KICKVOTES, "LFG.KickVotes", 4, 1, getConfig(CONFIG_UINT32_LFG_KICKVOTES));
+
     setConfigMinMax(CONFIG_UINT32_START_PLAYER_MONEY, "StartPlayerMoney", 0, 0, MAX_MONEY_AMOUNT);
 
     setConfigPos(CONFIG_UINT32_MAX_HONOR_POINTS, "MaxHonorPoints", 75000);
@@ -858,6 +869,11 @@ void World::LoadConfigSettings(bool reload)
     setConfigMinMax(CONFIG_UINT32_CHARDELETE_METHOD, "CharDelete.Method", 0, 0, 1);
     setConfigMinMax(CONFIG_UINT32_CHARDELETE_MIN_LEVEL, "CharDelete.MinLevel", 0, 0, getConfig(CONFIG_UINT32_MAX_PLAYER_LEVEL));
     setConfigPos(CONFIG_UINT32_CHARDELETE_KEEP_DAYS, "CharDelete.KeepDays", 30);
+
+    if (configNoReload(reload, CONFIG_UINT32_GUID_RESERVE_SIZE_CREATURE, "GuidReserveSize.Creature", 100))
+        setConfigPos(CONFIG_UINT32_GUID_RESERVE_SIZE_CREATURE,   "GuidReserveSize.Creature",   100);
+    if (configNoReload(reload, CONFIG_UINT32_GUID_RESERVE_SIZE_GAMEOBJECT, "GuidReserveSize.GameObject", 100))
+        setConfigPos(CONFIG_UINT32_GUID_RESERVE_SIZE_GAMEOBJECT, "GuidReserveSize.GameObject", 100);
 
     ///- Read the "Data" directory from the config file
     std::string dataPath = sConfig.GetStringDefault("DataDir", "./");
@@ -1233,6 +1249,9 @@ void World::SetInitialWorldSettings()
     sLog.outString( ">>> Localization strings loaded" );
     sLog.outString();
 
+    sLog.outString("Loading LFG rewards...");               // After load all static data
+    sLFGMgr.LoadRewards();
+
     ///- Load dynamic data tables from the database
     sLog.outString( "Loading Auctions..." );
     sLog.outString();
@@ -1550,6 +1569,9 @@ void World::Update(uint32 diff)
         m_timers[WUPDATE_DELETECHARS].Reset();
         Player::DeleteOldCharacters();
     }
+
+    // Check if any group can be created by dungeon finder
+    sLFGMgr.Update(diff);
 
     // execute callbacks from sql queries that were queued recently
     UpdateResultQueue();

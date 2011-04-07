@@ -3250,7 +3250,7 @@ SpellMissInfo Unit::MeleeSpellHitResult(Unit *pVictim, SpellEntry const *spell)
 
     uint32 missChance = uint32(MeleeSpellMissChance(pVictim, attType, fullSkillDiff, spell)*100.0f);
     // Roll miss
-    uint32 tmp = missChance;
+    uint32 tmp = spell->AttributesEx3 & SPELL_ATTR_EX3_CANT_MISS ? 0 : missChance;
     if (roll < tmp)
         return SPELL_MISS_MISS;
 
@@ -3434,10 +3434,10 @@ SpellMissInfo Unit::MagicSpellHitResult(Unit *pVictim, SpellEntry const *spell)
     if (HitChance <  100) HitChance =  100;
     if (HitChance > 10000) HitChance = 10000;
 
-    int32 tmp = 10000 - HitChance;
+    int32 tmp = spell->AttributesEx3 & SPELL_ATTR_EX3_CANT_MISS ? 0 : 10000 - HitChance;
 
     int32 rand = irand(0,10000);
-    
+
     // Chaos Bolt cannot be deflected
     if (spell->SpellFamilyName == SPELLFAMILY_WARLOCK && spell->SpellIconID == 3178)
         return SPELL_MISS_NONE;
@@ -3795,31 +3795,11 @@ void Unit::_UpdateSpells( uint32 time )
     for (SpellAuraHolderMap::iterator iter = m_spellAuraHolders.begin(); iter != m_spellAuraHolders.end();)
     {
         SpellAuraHolder *holder = iter->second;
-        if (holder)
-        {
-            if (!(holder->IsPermanent() || holder->IsPassive()) )
-            {
-                bool removedAura = false;
-                for (int32 i = 0; i < MAX_EFFECT_INDEX; ++i)
-                {
-                    if (Aura *aura = holder->GetAuraByEffectIndex(SpellEffectIndex(i)))
-                    {
-                        if (!aura->GetAuraDuration())
-                        {
-                            RemoveSingleAuraFromSpellAuraHolder(holder, aura->GetEffIndex(), AURA_REMOVE_BY_EXPIRE);
-                            removedAura = true;
-                            break;
-                        }
-                    }
-                }
 
-                if (!removedAura)
-                    ++iter;
-                else
-                    iter = m_spellAuraHolders.begin();
-            }
-            else
-                ++iter;
+        if (!(holder->IsPermanent() || holder->IsPassive()) && holder->GetAuraDuration() == 0)
+        {
+            RemoveSpellAuraHolder(holder, AURA_REMOVE_BY_EXPIRE);
+            iter = m_spellAuraHolders.begin();
         }
         else
             ++iter;
@@ -4825,6 +4805,14 @@ void Unit::RemoveAurasDueToSpellBySteal(uint32 spellId, uint64 casterGUID, Unit 
     SpellEntry const* spellProto = sSpellStore.LookupEntry(spellId);
     SpellAuraHolder *new_holder = CreateSpellAuraHolder(spellProto, stealer, this);
 
+    // set its duration and maximum duration
+    // max duration 2 minutes (in msecs)
+    int32 dur = holder->GetAuraDuration();
+    int32 max_dur = 2*MINUTE*IN_MILLISECONDS;
+    int32 new_max_dur = max_dur > dur ? dur : max_dur;
+    new_holder->SetAuraMaxDuration(new_max_dur);
+    new_holder->SetAuraDuration(new_max_dur);
+
     for (int32 i = 0; i < MAX_EFFECT_INDEX; ++i)
     {
         Aura *aur = holder->GetAuraByEffectIndex(SpellEffectIndex(i));
@@ -4836,14 +4824,6 @@ void Unit::RemoveAurasDueToSpellBySteal(uint32 spellId, uint64 casterGUID, Unit 
         // construct the new aura for the attacker - will never return NULL, it's just a wrapper for
         // some different constructors
         Aura * new_aur = CreateAura(aur->GetSpellProto(), aur->GetEffIndex(), &basePoints, new_holder, stealer, this);
-
-        // set its duration and maximum duration
-        // max duration 2 minutes (in msecs)
-        int32 dur = aur->GetAuraDuration();
-        int32 max_dur = 2*MINUTE*IN_MILLISECONDS;
-        int32 new_max_dur = max_dur > dur ? dur : max_dur;
-        new_aur->SetAuraMaxDuration( new_max_dur );
-        new_aur->SetAuraDuration( new_max_dur );
 
         // set periodic to do at least one tick (for case when original aura has been at last tick preparing)
         int32 periodic = aur->GetModifier()->periodictime;
@@ -4903,22 +4883,8 @@ void Unit::RemoveAuraHolderFromStack(uint32 spellId, uint32 stackAmount, uint64 
         {
             if (iter->second->ModStackAmount(-int32(stackAmount)))
             {
-                while (stackAmount--)
-                {
-                    if (iter->second->DropAuraCharge())
-                    {
-                        RemoveSpellAuraHolder(iter->second, mode);
-                        break;
-                    }
-                }
-            }
-            else
-            {
-                if (iter->second->ModStackAmount(-stackAmount))
-                {
-                    RemoveSpellAuraHolder(iter->second, mode);
-                    break;
-                }
+                RemoveSpellAuraHolder(iter->second, mode);
+                break;
             }
         }
     }
@@ -5219,22 +5185,19 @@ void Unit::DelaySpellAuraHolder(uint32 spellId, int32 delaytime, uint64 casterGU
     SpellAuraHolderBounds bounds = GetSpellAuraHolderBounds(spellId);
     for (SpellAuraHolderMap::iterator iter = bounds.first; iter != bounds.second; ++iter)
     {
-        if (casterGUID != iter->second->GetCasterGUID())
+        SpellAuraHolder* holder = iter->second;
+
+        if (casterGUID != holder->GetCasterGUID())
             continue;
 
-        for (int32 i = 0; i < MAX_EFFECT_INDEX; ++i)
-        {
-            if (Aura *aur = iter->second->GetAuraByEffectIndex(SpellEffectIndex(i)))
-            {
-                if (aur->GetAuraDuration() < delaytime)
-                    aur->SetAuraDuration(0);
-                else
-                    aur->SetAuraDuration(aur->GetAuraDuration() - delaytime);
+        if (holder->GetAuraDuration() < delaytime)
+            holder->SetAuraDuration(0);
+        else
+            holder->SetAuraDuration(holder->GetAuraDuration() - delaytime);
 
-                DEBUG_FILTER_LOG(LOG_FILTER_SPELL_CAST, "Spell %u, EffectIndex %u partially interrupted on unit %u, new duration: %u ms",spellId, i, GetGUIDLow(), aur->GetAuraDuration());
-            }
-        }
-        iter->second->SendAuraUpdate(false);
+        holder->SendAuraUpdate(false);
+
+        DEBUG_FILTER_LOG(LOG_FILTER_SPELL_CAST, "Spell %u partially interrupted on %s, new duration: %u ms", spellId, GetObjectGuid().GetString().c_str(), holder->GetAuraDuration());
     }
 }
 
@@ -6115,8 +6078,15 @@ void Unit::CombatStop(bool includingCast)
 
     AttackStop();
     RemoveAllAttackers();
+
     if( GetTypeId()==TYPEID_PLAYER )
         ((Player*)this)->SendAttackSwingCancelAttack();     // melee and ranged forced attack cancel
+    else if (GetTypeId() == TYPEID_UNIT)
+    {
+        if (((Creature*)this)->GetTemporaryFactionFlags() & TEMPFACTION_RESTORE_COMBAT_STOP)
+            ((Creature*)this)->ClearTemporaryFaction();
+    }
+
     ClearInCombat();
 }
 
@@ -7747,7 +7717,7 @@ bool Unit::IsImmuneToSpellEffect(SpellEntry const* spellInfo, SpellEffectIndex i
         for(AuraList::const_iterator iter = immuneAuraApply.begin(); iter != immuneAuraApply.end(); ++iter)
             if (spellInfo->Dispel == DISPEL_MAGIC &&                                      // Magic debuff
                 ((*iter)->GetModifier()->m_miscvalue & GetSpellSchoolMask(spellInfo)) &&  // Check school
-                !IsPositiveEffect(spellInfo->Id, index))                                  // Harmful
+                !IsPositiveEffect(spellInfo, index))                                      // Harmful
                 return true;
 
         AuraList const& immuneMechanicAuraApply = GetAurasByType(SPELL_AURA_MECHANIC_IMMUNITY_MASK);
@@ -7789,10 +7759,13 @@ uint32 Unit::MeleeDamageBonusDone(Unit *pVictim, uint32 pdamage,WeaponAttackType
         AuraList const& mModDamageDone = GetAurasByType(SPELL_AURA_MOD_DAMAGE_DONE);
         for(AuraList::const_iterator i = mModDamageDone.begin(); i != mModDamageDone.end(); ++i)
         {
-            if (((*i)->GetModifier()->m_miscvalue & schoolMask &&                                   // schoolmask has to fit with the intrinsic spell school
-                (*i)->GetModifier()->m_miscvalue & GetMeleeDamageSchoolMask() &&                    // AND schoolmask has to fit with weapon damage school (essential for non-physical spells)
-                ((*i)->GetSpellProto()->EquippedItemClass == -1) ||                                 // general, weapon independent
-                (pWeapon && pWeapon->IsFitToSpellRequirements((*i)->GetSpellProto()))))             // OR used weapon fits aura requirements
+            if (((*i)->GetModifier()->m_miscvalue & schoolMask ||                        // schoolmask has to fit with the intrinsic spell school
+                (*i)->GetSpellProto()->AttributesEx4 & SPELL_ATTR_EX4_PET_SCALING_AURA) &&  // completely schoolmask-independend: pet scaling auras
+                                                                                            // Those auras have SPELL_SCHOOL_MASK_MAGIC, but anyway should also affect
+                                                                                            // physical damage from non-weapon-damage-based spells (claw, swipe etc.)
+                (*i)->GetModifier()->m_miscvalue & GetMeleeDamageSchoolMask() &&         // AND schoolmask has to fit with weapon damage school (essential for non-physical spells)
+                (((*i)->GetSpellProto()->EquippedItemClass == -1) ||                     // general, weapon independent
+                (pWeapon && pWeapon->IsFitToSpellRequirements((*i)->GetSpellProto()))))  // OR used weapon fits aura requirements
             {
                 DoneFlat += (*i)->GetModifier()->m_amount;
             }
@@ -7824,10 +7797,10 @@ uint32 Unit::MeleeDamageBonusDone(Unit *pVictim, uint32 pdamage,WeaponAttackType
         AuraList const& mModDamagePercentDone = GetAurasByType(SPELL_AURA_MOD_DAMAGE_PERCENT_DONE);
         for(AuraList::const_iterator i = mModDamagePercentDone.begin(); i != mModDamagePercentDone.end(); ++i)
         {
-            if (((*i)->GetModifier()->m_miscvalue & schoolMask &&                                   // schoolmask has to fit with the intrinsic spell school
-                (*i)->GetModifier()->m_miscvalue & GetMeleeDamageSchoolMask() &&                    // AND schoolmask has to fit with weapon damage school (essential for non-physical spells)
-                ((*i)->GetSpellProto()->EquippedItemClass == -1) ||                                 // general, weapon independent
-                (pWeapon && pWeapon->IsFitToSpellRequirements((*i)->GetSpellProto()))))             // OR used weapon fits aura requirements
+            if ((*i)->GetModifier()->m_miscvalue & schoolMask &&                         // schoolmask has to fit with the intrinsic spell school
+                (*i)->GetModifier()->m_miscvalue & GetMeleeDamageSchoolMask() &&         // AND schoolmask has to fit with weapon damage school (essential for non-physical spells)
+                (((*i)->GetSpellProto()->EquippedItemClass == -1) ||                     // general, weapon independent
+                (pWeapon && pWeapon->IsFitToSpellRequirements((*i)->GetSpellProto()))))  // OR used weapon fits aura requirements
             {
                 DonePercent *= ((*i)->GetModifier()->m_amount+100.0f) / 100.0f;
             }
@@ -9378,118 +9351,71 @@ int32 Unit::CalculateSpellDamage(Unit const* target, SpellEntry const* spellProt
     return value;
 }
 
-int32 Unit::CalculateBaseSpellDuration(SpellEntry const* spellProto, uint32* periodicTime)
+int32 Unit::CalculateAuraDuration(SpellEntry const* spellProto, uint32 effectMask, int32 duration, Unit const* caster)
 {
-    int32 duration = GetSpellDuration(spellProto);
-
-    if (duration < 0)
+    if (duration <= 0)
         return duration;
 
-    if (GetTypeId() == TYPEID_PLAYER)
-    {
-        int32 maxduration = GetSpellMaxDuration(spellProto);
+    int32 mechanicMod = 0;
+    uint32 mechanicMask = GetSpellMechanicMask(spellProto, effectMask);
 
-        if (duration != maxduration)
-            duration += int32((maxduration - duration) * ((Player*)this)->GetComboPoints() / 5);
+    for(int32 mechanic = MECHANIC_CHARM; mechanic <= MECHANIC_ENRAGED; ++mechanic)
+    {
+        if (!(mechanicMask & (1 << (mechanic-1))))
+            continue;
+
+        int32 stackingMod = GetTotalAuraModifierByMiscValue(SPELL_AURA_MECHANIC_DURATION_MOD, mechanic);
+        int32 nonStackingMod = GetMaxNegativeAuraModifierByMiscValue(SPELL_AURA_MECHANIC_DURATION_MOD_NOT_STACK, mechanic);
+
+        mechanicMod = std::min(mechanicMod, std::min(stackingMod, nonStackingMod));
     }
 
-    Player* modOwner = GetSpellModOwner();
+    int32 dispelMod = 0;
+    int32 dmgClassMod = 0;
 
-    if (modOwner)
+    if (!IsPositiveSpell(spellProto))
     {
-        modOwner->ApplySpellMod(spellProto->Id, SPELLMOD_DURATION, duration);
-
-        if (duration <= 0)
-            return 0;
+        dispelMod   = GetTotalAuraModifierByMiscValue(SPELL_AURA_MOD_DURATION_OF_EFFECTS_BY_DISPEL, spellProto->Dispel);
+        dmgClassMod = GetTotalAuraModifierByMiscValue(SPELL_AURA_MOD_DURATION_OF_MAGIC_EFFECTS, spellProto->DmgClass);
     }
 
-    bool applyHaste = (spellProto->AttributesEx5 & SPELL_ATTR_EX5_AFFECTED_BY_HASTE) != 0;
+    int32 durationMod = std::min(mechanicMod, std::min(dispelMod, dmgClassMod));
 
-    if (!applyHaste)
+    if (durationMod != 0)
     {
-        Unit::AuraList const& mModByHaste = GetAurasByType(SPELL_AURA_MOD_PERIODIC_HASTE);
-        for (Unit::AuraList::const_iterator itr = mModByHaste.begin(); itr != mModByHaste.end(); ++itr)
-        {
-            if ((*itr)->isAffectedOnSpell(spellProto))
-            {
-                applyHaste = true;
-                break;
-            }
-        }
+        duration = int32(int64(duration) * (100+durationMod) / 100);
+
+        if (duration < 0)
+            duration = 0;
     }
 
-    uint32 oldDuration = duration;
-
-    // Apply haste to duration
-    if (applyHaste)
-        duration = int32(duration * GetFloatValue(UNIT_MOD_CAST_SPEED));
-
-    uint32 _periodicTime = periodicTime ? *periodicTime : 0;
-
-    if (_periodicTime)
-    {
-        if (modOwner)
-            modOwner->ApplySpellMod(spellProto->Id, SPELLMOD_ACTIVATION_TIME, _periodicTime);
-
-        // Calculate new periodic timer
-        if (applyHaste)
-        {
-            int32 ticks = oldDuration / _periodicTime;
-            _periodicTime = duration / ticks;
-        }
-
-        *periodicTime = _periodicTime;
-    }
-
-    return duration;
-}
-
-uint32 Unit::CalculateSpellDuration(Unit const* caster, uint32 baseDuration, SpellEntry const* spellProto, SpellEffectIndex effect_index)
-{
-    int32 mechanic = GetEffectMechanic(spellProto, effect_index);
-    // Find total mod value (negative bonus)
-    int32 durationMod_always = GetTotalAuraModifierByMiscValue(SPELL_AURA_MECHANIC_DURATION_MOD, mechanic);
-    // Modify from SPELL_AURA_MOD_DURATION_OF_EFFECTS_BY_DISPEL aura for negative effects (stack always ?)
-    if (!IsPositiveEffect(spellProto->Id, effect_index))
-        durationMod_always += GetTotalAuraModifierByMiscValue(SPELL_AURA_MOD_DURATION_OF_EFFECTS_BY_DISPEL, spellProto->Dispel);
-    // Find max mod (negative bonus)
-    int32 durationMod_not_stack = GetMaxNegativeAuraModifierByMiscValue(SPELL_AURA_MECHANIC_DURATION_MOD_NOT_STACK, mechanic);
-
-    if (!IsPositiveSpell(spellProto->Id))
-        durationMod_always += GetTotalAuraModifierByMiscValue(SPELL_AURA_MOD_DURATION_OF_MAGIC_EFFECTS, spellProto->Dispel);
-
-    int32 durationMod = 0;
-
-    // Select strongest negative mod
-    if (durationMod_always > durationMod_not_stack)
-        durationMod = durationMod_not_stack;
-    else
-        durationMod = durationMod_always;
-
-    if (baseDuration > 0 && caster == this)
+    if (caster == this)
     {
         switch(spellProto->SpellFamilyName)
         {
             case SPELLFAMILY_DRUID:
-                if (spellProto->SpellFamilyFlags & UI64LIT(0x100))
+                // Thorns
+                if (spellProto->SpellIconID == 53 && (spellProto->SpellFamilyFlags & UI64LIT(0x0000000000000100)))
                 {
                     // Glyph of Thorns
                     if (Aura *aur = GetAura(57862, EFFECT_INDEX_0))
-                        baseDuration += aur->GetModifier()->m_amount * MINUTE * IN_MILLISECONDS;
+                        duration += aur->GetModifier()->m_amount * MINUTE * IN_MILLISECONDS;
                 }
                 break;
             case SPELLFAMILY_PALADIN:
-                if (spellProto->SpellIconID == 298 && spellProto->SpellFamilyFlags & UI64LIT(0x00000002))
+                // Blessing of Might
+                if (spellProto->SpellIconID == 298 && spellProto->SpellFamilyFlags & UI64LIT(0x0000000000000002))
                 {
                     // Glyph of Blessing of Might
                     if (Aura *aur = GetAura(57958, EFFECT_INDEX_0))
-                        baseDuration += aur->GetModifier()->m_amount * MINUTE * IN_MILLISECONDS;
+                        duration += aur->GetModifier()->m_amount * MINUTE * IN_MILLISECONDS;
                 }
-                else if (spellProto->SpellIconID == 306 && spellProto->SpellFamilyFlags & UI64LIT(0x00010000))
+                // Blessing of Wisdom
+                else if (spellProto->SpellIconID == 306 && spellProto->SpellFamilyFlags & UI64LIT(0x0000000000010000))
                 {
                     // Glyph of Blessing of Wisdom
                     if (Aura *aur = GetAura(57979, EFFECT_INDEX_0))
-                        baseDuration += aur->GetModifier()->m_amount * MINUTE * IN_MILLISECONDS;
+                        duration += aur->GetModifier()->m_amount * MINUTE * IN_MILLISECONDS;
                 }
                 break;
             default:
@@ -9497,13 +9423,7 @@ uint32 Unit::CalculateSpellDuration(Unit const* caster, uint32 baseDuration, Spe
         }
     }
 
-    if (durationMod != 0)
-    {
-        int32 duration = int32(int64(baseDuration) * (100+durationMod) / 100);
-        return duration < 0 ? 0 : duration;
-    }
-
-    return baseDuration;
+    return duration;
 }
 
 DiminishingLevels Unit::GetDiminishing(DiminishingGroup group)
@@ -10807,7 +10727,7 @@ SpellSchoolMask Unit::GetMeleeDamageSchoolMask() const
     return SPELL_SCHOOL_MASK_NORMAL;
 }
 
-Player* Unit::GetSpellModOwner()
+Player* Unit::GetSpellModOwner() const
 {
     if(GetTypeId()==TYPEID_PLAYER)
         return (Player*)this;
@@ -12014,8 +11934,8 @@ void Unit::_AddAura(uint32 spellID, uint32 duration)
                     spellInfo->Effect[i] == SPELL_EFFECT_PERSISTENT_AREA_AURA )
                 {
                     Aura *aura = CreateAura(spellInfo, SpellEffectIndex(i), NULL, holder, this);
-                    aura->SetAuraDuration(duration);
                     holder->AddAura(aura, SpellEffectIndex(i));
+                    holder->SetAuraDuration(duration);
                     DEBUG_FILTER_LOG(LOG_FILTER_SPELL_CAST, "Manually adding aura of spell %u, index %u, duration %u ms", spellID, i, duration);
                 }
             }

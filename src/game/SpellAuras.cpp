@@ -283,9 +283,9 @@ pAuraHandler AuraHandler[TOTAL_AURAS]=
     &Aura::HandleNoImmediateEffect,                         //229 SPELL_AURA_MOD_AOE_DAMAGE_AVOIDANCE        implemented in Unit::SpellDamageBonusTaken
     &Aura::HandleAuraModIncreaseMaxHealth,                  //230 Commanding Shout
     &Aura::HandleNoImmediateEffect,                         //231 SPELL_AURA_PROC_TRIGGER_SPELL_WITH_VALUE
-    &Aura::HandleNoImmediateEffect,                         //232 SPELL_AURA_MECHANIC_DURATION_MOD           implement in Unit::CalculateSpellDuration
+    &Aura::HandleNoImmediateEffect,                         //232 SPELL_AURA_MECHANIC_DURATION_MOD           implement in Unit::CalculateAuraDuration
     &Aura::HandleNULL,                                      //233 set model id to the one of the creature with id m_modifier.m_miscvalue
-    &Aura::HandleNoImmediateEffect,                         //234 SPELL_AURA_MECHANIC_DURATION_MOD_NOT_STACK implement in Unit::CalculateSpellDuration
+    &Aura::HandleNoImmediateEffect,                         //234 SPELL_AURA_MECHANIC_DURATION_MOD_NOT_STACK implement in Unit::CalculateAuraDuration
     &Aura::HandleAuraModDispelResist,                       //235 SPELL_AURA_MOD_DISPEL_RESIST               implement in Unit::MagicSpellHitResult
     &Aura::HandleAuraControlVehicle,                        //236 SPELL_AURA_CONTROL_VEHICLE
     &Aura::HandleModSpellDamagePercentFromAttackPower,      //237 SPELL_AURA_MOD_SPELL_DAMAGE_OF_ATTACK_POWER  implemented in Unit::SpellBaseDamageBonusDone
@@ -296,8 +296,8 @@ pAuraHandler AuraHandler[TOTAL_AURAS]=
     &Aura::HandleUnused,                                    //242 SPELL_AURA_MOD_SPELL_DAMAGE_FROM_HEALING (only 2 test spels in 3.2.2a)
     &Aura::HandleAuraFactionChange,                         //243 faction change
     &Aura::HandleComprehendLanguage,                        //244 SPELL_AURA_COMPREHEND_LANGUAGE
-    &Aura::HandleNoImmediateEffect,                         //245 SPELL_AURA_MOD_DURATION_OF_MAGIC_EFFECTS     implemented in Unit::CalculateSpellDuration
-    &Aura::HandleNoImmediateEffect,                         //246 SPELL_AURA_MOD_DURATION_OF_EFFECTS_BY_DISPEL implemented in Unit::CalculateSpellDuration
+    &Aura::HandleNoImmediateEffect,                         //245 SPELL_AURA_MOD_DURATION_OF_MAGIC_EFFECTS     implemented in Unit::CalculateAuraDuration
+    &Aura::HandleNoImmediateEffect,                         //246 SPELL_AURA_MOD_DURATION_OF_EFFECTS_BY_DISPEL implemented in Unit::CalculateAuraDuration
     &Aura::HandleAuraMirrorImage,                           //247 SPELL_AURA_MIRROR_IMAGE
     &Aura::HandleNoImmediateEffect,                         //248 SPELL_AURA_MOD_COMBAT_RESULT_CHANCE         implemented in Unit::RollMeleeOutcomeAgainst
     &Aura::HandleAuraConvertRune,                           //249 SPELL_AURA_CONVERT_RUNE
@@ -373,31 +373,24 @@ pAuraHandler AuraHandler[TOTAL_AURAS]=
 static AuraType const frozenAuraTypes[] = { SPELL_AURA_MOD_ROOT, SPELL_AURA_MOD_STUN, SPELL_AURA_NONE };
 
 Aura::Aura(SpellEntry const* spellproto, SpellEffectIndex eff, int32 *currentBasePoints, SpellAuraHolder *holder, Unit *target, Unit *caster, Item* castItem) :
-m_spellmod(NULL),
-m_timeCla(1000), m_periodicTimer(0), m_periodicTick(0), m_removeMode(AURA_REMOVE_BY_DEFAULT),
+m_spellmod(NULL), m_periodicTimer(0), m_periodicTick(0), m_removeMode(AURA_REMOVE_BY_DEFAULT),
 m_effIndex(eff), m_positive(false), m_isPeriodic(false), m_isAreaAura(false),
 m_isPersistent(false), m_in_use(0), m_spellAuraHolder(holder)
 {
     MANGOS_ASSERT(target);
-
     MANGOS_ASSERT(spellproto && spellproto == sSpellStore.LookupEntry( spellproto->Id ) && "`info` must be pointer to sSpellStore element");
 
     m_currentBasePoints = currentBasePoints ? *currentBasePoints : spellproto->CalculateSimpleValue(eff);
 
-    bool isPassive = IsPassiveSpell(GetSpellProto());
-    bool isPermanent = false;
-    m_positive = IsPositiveEffect(spellproto->Id, m_effIndex);
-
+    m_positive = IsPositiveEffect(spellproto, m_effIndex);
     m_applyTime = time(NULL);
 
     int32 damage;
     if (!caster)
-    {
         damage = m_currentBasePoints;
-    }
     else
     {
-        damage        = caster->CalculateSpellDamage(target, spellproto, m_effIndex, &m_currentBasePoints);
+        damage = caster->CalculateSpellDamage(target, spellproto, m_effIndex, &m_currentBasePoints);
 
         if (!damage && castItem && castItem->GetItemSuffixFactor())
         {
@@ -426,31 +419,56 @@ m_isPersistent(false), m_in_use(0), m_spellAuraHolder(holder)
         }
     }
 
+    DEBUG_FILTER_LOG(LOG_FILTER_SPELL_CAST, "Aura: construct Spellid : %u, Aura : %u Target : %d Damage : %d", spellproto->Id, spellproto->EffectApplyAuraName[eff], spellproto->EffectImplicitTargetA[eff], damage);
+
     SetModifier(AuraType(spellproto->EffectApplyAuraName[eff]), damage, spellproto->EffectAmplitude[eff], spellproto->EffectMiscValue[eff]);
 
-    if (caster)
-        m_maxduration = caster->CalculateBaseSpellDuration(spellproto, &m_modifier.periodictime);
-    else
-        m_maxduration = GetSpellDuration(spellproto);
+    Player* modOwner = caster ? caster->GetSpellModOwner() : NULL;
 
-    if (m_maxduration == -1 || (isPassive && spellproto->DurationIndex == 0))
-        isPermanent = true;
 
-    if (!isPermanent)
+    // Apply periodic time mod
+    if (modOwner && m_modifier.periodictime)
     {
-        m_maxduration = target->CalculateSpellDuration(caster, m_maxduration, spellproto, m_effIndex);
-        // Get zero duration aura after - need set m_maxduration > 0 for apply/remove aura work
-        if (m_maxduration<=0)
-            m_maxduration = 1;
+        modOwner->ApplySpellMod(spellproto->Id, SPELLMOD_ACTIVATION_TIME, m_modifier.periodictime);
+
+        bool applyHaste = (spellproto->AttributesEx5 & SPELL_ATTR_EX5_AFFECTED_BY_HASTE) != 0;
+
+        if (!applyHaste)
+        {
+            Unit::AuraList const& mModByHaste = caster->GetAurasByType(SPELL_AURA_MOD_PERIODIC_HASTE);
+            for (Unit::AuraList::const_iterator itr = mModByHaste.begin(); itr != mModByHaste.end(); ++itr)
+            {
+                if ((*itr)->isAffectedOnSpell(spellproto))
+                {
+                    applyHaste = true;
+                    break;
+                }
+            }
+        }
+
+        // Apply haste to duration
+        if (applyHaste)
+        {
+            uint32 oldDuration = GetHolder()->GetAuraDuration();
+
+            int32 new_duration = (int32)(oldDuration * caster->GetFloatValue(UNIT_MOD_CAST_SPEED));
+            GetHolder()->SetAuraMaxDuration(new_duration);
+            GetHolder()->SetAuraDuration(new_duration);
+
+            uint32 _periodicTime = m_modifier.periodictime;
+
+            // Calculate new periodic timer
+            int32 ticks = oldDuration / _periodicTime;
+
+            _periodicTime = new_duration / ticks;
+
+            m_modifier.periodictime = _periodicTime;
+        }
     }
-
-    m_duration = m_maxduration;
-
-    DEBUG_FILTER_LOG(LOG_FILTER_SPELL_CAST, "Aura: construct Spellid : %u, Aura : %u Duration : %d Target : %d Damage : %d", spellproto->Id, spellproto->EffectApplyAuraName[eff], m_maxduration, spellproto->EffectImplicitTargetA[eff],damage);
 
     // Start periodic on next tick or at aura apply
     if (!(spellproto->AttributesEx5 & SPELL_ATTR_EX5_START_PERIODIC_AT_APPLY))
-        m_periodicTimer += m_modifier.periodictime;
+        m_periodicTimer = m_modifier.periodictime;
 }
 
 Aura::~Aura()
@@ -567,35 +585,7 @@ void Aura::SetModifier(AuraType t, int32 a, uint32 pt, int32 miscValue)
 
 void Aura::Update(uint32 diff)
 {
-    if (m_duration > 0)
-    {
-        m_duration -= diff;
-        if (m_duration < 0)
-            m_duration = 0;
-        m_timeCla -= diff;
-
-        // GetEffIndex()==0 prevent double/triple apply manaPerSecond/manaPerSecondPerLevel to same spell with many auras
-        // all spells with manaPerSecond/manaPerSecondPerLevel have aura in effect 0
-        if (GetEffIndex() == EFFECT_INDEX_0 && m_timeCla <= 0)
-        {
-            Unit* caster = GetCaster();
-            if (caster && caster->IsInWorld())
-            {
-                Powers powertype = Powers(GetSpellProto()->powerType);
-                int32 manaPerSecond = GetSpellProto()->manaPerSecond + GetSpellProto()->manaPerSecondPerLevel * caster->getLevel();
-                m_timeCla = 1*IN_MILLISECONDS;
-                if (manaPerSecond)
-                {
-                    if(powertype==POWER_HEALTH)
-                        caster->ModifyHealth(-manaPerSecond);
-                    else
-                        caster->ModifyPower(powertype,-manaPerSecond);
-                }
-            }
-        }
-    }
-
-    if(m_isPeriodic && (m_duration >= 0 || GetHolder()->IsPassive() || GetHolder()->IsPermanent()))
+    if (m_isPeriodic)
     {
         m_periodicTimer -= diff;
         if(m_periodicTimer <= 0) // tick also at m_periodicTimer==0 to prevent lost last tick in case max m_duration == (max m_periodicTimer)*N
@@ -807,8 +797,9 @@ void AreaAura::Update(uint32 diff)
                         addedToExisting = false;
                     }
 
+                    holder->SetAuraDuration(GetAuraDuration());
+
                     AreaAura *aur = new AreaAura(actualSpellInfo, m_effIndex, &actualBasePoints, holder, (*tIter), caster, NULL);
-                    aur->SetAuraDuration(GetAuraDuration());
                     holder->AddAura(aur, m_effIndex);
 
                     if (addedToExisting)
@@ -2048,7 +2039,7 @@ void Aura::HandleAuraDummy(bool apply, bool Real)
                         // max duration is 2 minutes, but expected to be random duration
                         // real time randomness is unclear, using max 30 seconds here
                         // see further down for expire of this aura
-                        SetAuraDuration(rand()%30*IN_MILLISECONDS);
+                        GetHolder()->SetAuraDuration(urand(1, 30)*IN_MILLISECONDS);
                         return;
                     }
                     // Gender spells
@@ -2142,6 +2133,10 @@ void Aura::HandleAuraDummy(bool apply, bool Real)
                         if (target->HasAuraType(SPELL_AURA_MOUNTED))
                             // Reindeer Transformation
                             target->CastSpell(target, 25860, true, NULL, this);
+                        return;
+                    case 62109:                             // Tails Up: Aura
+                        target->setFaction(1990);           // Ambient (hostile)
+                        target->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_OOC_NOT_ATTACKABLE);
                         return;
                     case 63624:                             // Learn a Second Talent Specialization
                         // Teach Learn Talent Specialization Switches, required for client triggered casts, allow after 30 sec delay
@@ -2757,6 +2752,21 @@ void Aura::HandleAuraDummy(bool apply, bool Real)
         {
             switch(GetId())
             {
+                case 6606:                                  // Self Visual - Sleep Until Cancelled (DND)
+                {
+                    if (apply)
+                    {
+                        target->SetStandState(UNIT_STAND_STATE_SLEEP);
+                        target->addUnitState(UNIT_STAT_ROOT);
+                    }
+                    else
+                    {
+                        target->clearUnitState(UNIT_STAT_ROOT);
+                        target->SetStandState(UNIT_STAND_STATE_STAND);
+                    }
+
+                    return;
+                }
                 case 11196:                                 // Recently Bandaged
                     target->ApplySpellImmune(GetId(), IMMUNITY_MECHANIC, GetMiscValue(), apply);
                     return;
@@ -4651,10 +4661,10 @@ void Aura::HandleModStealth(bool apply, bool Real)
                 // Overkill
                 else if ((*i)->GetId() == 58426)//Overkill we should remove anyway
                 {
-                    if (Aura* aura = target->GetAura(58427, EFFECT_INDEX_0))
+                    if (SpellAuraHolder* holder = target->GetSpellAuraHolder(58427))
                     {
-                        aura->SetAuraMaxDuration(20*IN_MILLISECONDS);
-                        aura->GetHolder()->RefreshHolder();
+                        holder->SetAuraMaxDuration(20*IN_MILLISECONDS);
+                        holder->RefreshHolder();
                     }
                 }
             }
@@ -5417,6 +5427,45 @@ void Aura::HandleAuraPeriodicDummy(bool apply, bool Real)
     SpellEntry const*spell = GetSpellProto();
     switch( spell->SpellFamilyName)
     {
+        case SPELLFAMILY_GENERIC:
+        {
+            switch(spell->Id)
+            {
+                case 55093:                                   // Grip of Slad'ran
+                case 61474:                                   // Grip of Slad'ran (h)
+                {
+                    if (apply)
+                    {
+                        if (target->HasAura(55126) || target->HasAura(61476))
+                        {
+                            target->RemoveSpellAuraHolder(GetHolder());
+                            return;
+                        }
+
+                        if (GetHolder()->GetStackAmount() >= 5)
+                        {
+                            target->RemoveAura(this);
+                            target->CastSpell(target, (spell->Id == 55093) ? 55126 : 61476, true);
+                        }
+                    }
+                    break;
+                }
+                case 62717:                                   // Slag Pot (Ulduar: Ignis)
+                case 63477:
+                {
+                    Unit *caster = GetCaster();
+
+                    if (!caster || !target)
+                        return;
+
+                    // Haste buff (Slag Imbued)
+                    if (!apply)
+                        target->CastSpell(caster, (spell->Id == 62717) ? 62836 : 63536, true);
+
+                    break;
+                }
+            }
+        }
         case SPELLFAMILY_ROGUE:
         {
             if(!apply)
@@ -5435,7 +5484,7 @@ void Aura::HandleAuraPeriodicDummy(bool apply, bool Real)
             {
                 case 48018:
                     if (apply)
-                        target->CastSpell(target, 62388, true);                
+                        target->CastSpell(target, 62388, true);
                     else
                     {
                         target->RemoveGameObject(spell->Id,true);
@@ -8083,6 +8132,15 @@ void Aura::PeriodicDummyTick()
                         case 2: target->CastSpell(target, 55739, true); break;
                     }
                     return;
+                case 62717:                                 // Slag Pot (periodic dmg)
+                case 63477:
+                {
+                    Unit *caster = GetCaster();
+
+                    if (caster && target)
+                        caster->CastSpell(target, (spell->Id == 62717) ? 65722 : 65723, true, 0, this, this->GetCasterGUID(), this->GetSpellProto());
+                    return;
+                }
                 case 69008:                                 // Soulstorm (OOC aura)
                 case 68870:                                 // Soulstorm
                 {
@@ -8713,20 +8771,6 @@ void Aura::HandleAuraModAllCritChance(bool apply, bool Real)
     ((Player*)target)->UpdateAllSpellCritChances();
 }
 
-void Aura::SetAuraMaxDuration(int32 duration)
-{
-    m_maxduration = duration;
-
-    // possible overwrite persistent state
-    if (duration > 0)
-    {
-        if (!(GetHolder()->IsPassive() && GetSpellProto()->DurationIndex == 0))
-            GetHolder()->SetPermanent(false);
-
-        GetHolder()->SetAuraFlags(GetHolder()->GetAuraFlags() | AFLAG_DURATION);
-    }
-}
-
 bool Aura::IsLastAuraOnHolder()
 {
     for (int32 i = 0; i < MAX_EFFECT_INDEX; ++i)
@@ -8742,9 +8786,9 @@ bool Aura::HasMechanic(uint32 mechanic) const
 }
 
 SpellAuraHolder::SpellAuraHolder(SpellEntry const* spellproto, Unit *target, WorldObject *caster, Item *castItem) :
-m_target(target), m_castItemGuid(castItem ? castItem->GetObjectGuid() : ObjectGuid()),
+m_spellProto(spellproto), m_target(target), m_castItemGuid(castItem ? castItem->GetObjectGuid() : ObjectGuid()),
 m_auraSlot(MAX_AURAS), m_auraFlags(AFLAG_NONE), m_auraLevel(1), m_procCharges(0),
-m_stackAmount(1), m_removeMode(AURA_REMOVE_BY_DEFAULT), m_AuraDRGroup(DIMINISHING_NONE),
+m_stackAmount(1), m_removeMode(AURA_REMOVE_BY_DEFAULT), m_AuraDRGroup(DIMINISHING_NONE), m_timeCla(1000),
 m_permanent(false), m_isRemovedOnShapeLost(true), m_deleted(false), m_in_use(0)
 {
     MANGOS_ASSERT(target);
@@ -8755,29 +8799,33 @@ m_permanent(false), m_isRemovedOnShapeLost(true), m_deleted(false), m_in_use(0)
     else
     {
         // remove this assert when not unit casters will be supported
-        MANGOS_ASSERT(caster->GetObjectGuid().IsUnit())
+        MANGOS_ASSERT(caster->isType(TYPEMASK_UNIT))
         m_casterGuid = caster->GetObjectGuid();
     }
 
-    m_applyTime = time(NULL);
-    m_spellProto = spellproto;
-    m_isPassive = IsPassiveSpell(GetId());
-    m_isDeathPersist = IsDeathPersistentSpell(m_spellProto);
+    m_applyTime      = time(NULL);
+    m_isPassive      = IsPassiveSpell(spellproto);
+    m_isDeathPersist = IsDeathPersistentSpell(spellproto);
     m_isSingleTarget = IsSingleTargetSpell(spellproto);
-
-    if (GetSpellMaxDuration(m_spellProto) == -1 || (m_isPassive && m_spellProto->DurationIndex == 0))
-        m_permanent = true;
+    m_procCharges    = spellproto->procCharges;
 
     m_isRemovedOnShapeLost = (GetCasterGuid() == m_target->GetObjectGuid() &&
                               m_spellProto->Stances &&
                             !(m_spellProto->AttributesEx2 & SPELL_ATTR_EX2_NOT_NEED_SHAPESHIFT) &&
                             !(m_spellProto->Attributes & SPELL_ATTR_NOT_SHAPESHIFT));
 
-    Player* modOwner = caster && caster->GetObjectGuid().IsUnit() ? ((Unit*)caster)->GetSpellModOwner() : NULL;
+    Unit* unitCaster = caster && caster->isType(TYPEMASK_UNIT) ? (Unit*)caster : NULL;
 
-    m_procCharges = m_spellProto->procCharges;
-    if(modOwner)
-        modOwner->ApplySpellMod(GetId(), SPELLMOD_CHARGES, m_procCharges);
+    m_duration = m_maxDuration = CalculateSpellDuration(spellproto, unitCaster);
+
+    if (m_maxDuration == -1 || (m_isPassive && spellproto->DurationIndex == 0))
+        m_permanent = true;
+
+    if (unitCaster)
+    {
+        if (Player* modOwner = unitCaster->GetSpellModOwner())
+            modOwner->ApplySpellMod(GetId(), SPELLMOD_CHARGES, m_procCharges);
+    }
 
     // some custom stack values at aura holder create
     switch (m_spellProto->Id)
@@ -9148,16 +9196,6 @@ void SpellAuraHolder::SetStackAmount(uint32 stackAmount)
                     aur->ApplyModifier(false, true);
                     aur->GetModifier()->m_amount = amount;
                     aur->ApplyModifier(true, true);
-                    // change duration if aura refreshes
-                    if (refresh)
-                    {
-                        // new duration based on combo points
-                        if (GetSpellDuration(aur->GetSpellProto()) != GetSpellMaxDuration(aur->GetSpellProto()))
-                        {
-                            if (Unit *caster = aur->GetCaster())
-                                aur->SetAuraMaxDuration(caster->CalculateBaseSpellDuration(aur->GetSpellProto(), &aur->GetModifier()->periodictime));
-                        }
-                    }
                 }
             }
         }
@@ -9250,23 +9288,8 @@ void SpellAuraHolder::BuildUpdatePacket(WorldPacket& data) const
 
     if(auraFlags & AFLAG_DURATION)
     {
-        // take highest - to display icon even if stun fades
-        uint32 max_duration = 0;
-        uint32 duration = 0;
-        for (int32 i = 0; i < MAX_EFFECT_INDEX; ++i)
-        {
-            if (Aura *aura = m_auras[i])
-            {
-                if (uint32(aura->GetAuraMaxDuration()) > max_duration)
-                {
-                    max_duration = aura->GetAuraMaxDuration();
-                    duration = aura->GetAuraDuration();
-                }
-            }
-        }
-
-        data << uint32(max_duration);
-        data << uint32(duration);
+        data << uint32(GetAuraMaxDuration());
+        data << uint32(GetAuraDuration());
     }
 }
 
@@ -10062,6 +10085,33 @@ SpellAuraHolder::~SpellAuraHolder()
 
 void SpellAuraHolder::Update(uint32 diff)
 {
+    if (m_duration > 0)
+    {
+        m_duration -= diff;
+        if (m_duration < 0)
+            m_duration = 0;
+
+        m_timeCla -= diff;
+
+        if (m_timeCla <= 0)
+        {
+            if (Unit* caster = GetCaster())
+            {
+                Powers powertype = Powers(GetSpellProto()->powerType);
+                int32 manaPerSecond = GetSpellProto()->manaPerSecond + GetSpellProto()->manaPerSecondPerLevel * caster->getLevel();
+                m_timeCla = 1*IN_MILLISECONDS;
+
+                if (manaPerSecond)
+                {
+                    if (powertype == POWER_HEALTH)
+                        caster->ModifyHealth(-manaPerSecond);
+                    else
+                        caster->ModifyPower(powertype, -manaPerSecond);
+                }
+            }
+        }
+    }
+
     for (int32 i = 0; i < MAX_EFFECT_INDEX; ++i)
         if (Aura *aura = m_auras[i])
             aura->UpdateAura(diff);
@@ -10096,11 +10146,24 @@ void SpellAuraHolder::Update(uint32 diff)
 
 void SpellAuraHolder::RefreshHolder()
 {
-    for (int32 i = 0; i < MAX_EFFECT_INDEX; ++i)
-        if (Aura *aura = m_auras[i])
-            aura->SetAuraDuration(aura->GetAuraMaxDuration());
-
+    SetAuraDuration(GetAuraMaxDuration());
     SendAuraUpdate(false);
+}
+
+void SpellAuraHolder::SetAuraMaxDuration(int32 duration)
+{
+    m_maxDuration = duration;
+
+    // possible overwrite persistent state
+    if (duration > 0)
+    {
+        if (!(IsPassive() && GetSpellProto()->DurationIndex == 0))
+            SetPermanent(false);
+
+        SetAuraFlags(GetAuraFlags() | AFLAG_DURATION);
+    }
+    else
+        SetAuraFlags(GetAuraFlags() & ~AFLAG_DURATION);
 }
 
 bool SpellAuraHolder::HasMechanic(uint32 mechanic) const

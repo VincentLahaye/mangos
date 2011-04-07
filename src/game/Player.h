@@ -38,6 +38,7 @@
 #include "BattleGround.h"
 #include "DBCStores.h"
 #include "SharedDefines.h"
+#include "LFG.h"
 #include "AntiCheat.h"
 
 #include<string>
@@ -55,6 +56,7 @@ class Vehicle;
 class DungeonPersistentState;
 class Spell;
 class Item;
+struct AreaTrigger;
 
 typedef std::deque<Mail*> PlayerMails;
 
@@ -408,25 +410,6 @@ struct EnchantDuration
 
 typedef std::list<EnchantDuration> EnchantDurationList;
 typedef std::list<Item*> ItemDurationList;
-
-enum LfgType
-{
-    LFG_TYPE_NONE                 = 0,
-    LFG_TYPE_DUNGEON              = 1,
-    LFG_TYPE_RAID                 = 2,
-    LFG_TYPE_QUEST                = 3,
-    LFG_TYPE_ZONE                 = 4,
-    LFG_TYPE_HEROIC_DUNGEON       = 5,
-    LFG_TYPE_RANDOM_DUNGEON       = 6
-};
-
-enum LfgRoles
-{
-    LEADER  = 0x01,
-    TANK    = 0x02,
-    HEALER  = 0x04,
-    DAMAGE  = 0x08
-};
 
 struct LookingForGroupSlot
 {
@@ -1788,14 +1771,8 @@ class MANGOS_DLL_SPEC Player : public Unit
         bool isRessurectRequested() const { return !m_resurrectGuid.IsEmpty(); }
         void ResurectUsingRequestData();
 
-        int getCinematic()
-        {
-            return m_cinematic;
-        }
-        void setCinematic(int cine)
-        {
-            m_cinematic = cine;
-        }
+        uint32 getCinematic() { return m_cinematic; }
+        void setCinematic(uint32 cine) { m_cinematic = cine; }
 
         static bool IsActionButtonDataValid(uint8 button, uint32 action, uint8 type, Player* player, bool msg = true);
         ActionButton* addActionButton(uint8 spec, uint8 button, uint32 action, uint8 type);
@@ -2404,6 +2381,14 @@ class MANGOS_DLL_SPEC Player : public Unit
         static void ConvertInstancesToGroup(Player *player, Group *group = NULL, ObjectGuid player_guid = ObjectGuid());
         DungeonPersistentState* GetBoundInstanceSaveForSelfOrGroup(uint32 mapid);
 
+        AreaLockStatus GetAreaLockStatus(uint32 mapId, Difficulty difficulty);
+        AreaLockStatus GetAreaTriggerLockStatus(AreaTrigger const* at, Difficulty difficulty);
+        bool CanEnterToArea(uint32 mapId, Difficulty difficulty) { return GetAreaLockStatus(mapId, difficulty) == AREA_LOCKSTATUS_OK; };
+        bool CanUseAreaTrigger(AreaTrigger const* at, Difficulty difficulty) { return GetAreaTriggerLockStatus(at, difficulty) == AREA_LOCKSTATUS_OK; };
+
+        // LFG
+        LFGPlayerState* GetLFGState() { return m_LFGState;};
+
         /*********************************************************/
         /***                   GROUP SYSTEM                    ***/
         /*********************************************************/
@@ -2643,7 +2628,7 @@ class MANGOS_DLL_SPEC Player : public Unit
         typedef std::list<Channel*> JoinedChannelsList;
         JoinedChannelsList m_channels;
 
-        int m_cinematic;
+        uint32 m_cinematic;
 
         TradeData* m_trade;
 
@@ -2794,6 +2779,9 @@ class MANGOS_DLL_SPEC Player : public Unit
 
         DungeonPersistentState* _pendingBind;
         uint32 _pendingBindTimer;
+
+        // LFG
+        LFGPlayerState* m_LFGState;
 };
 
 void AddItemsSetItem(Player*player,Item *item);

@@ -2003,7 +2003,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit *pVictim, uint32 damage, Aura
                         int32 duration = GetSpellMaxDuration(spellProto);
                         if(GetTypeId() == TYPEID_PLAYER)
                             static_cast<Player*>(this)->ApplySpellMod(spellProto->Id, SPELLMOD_DURATION, duration);
-                        (*itr)->SetAuraMaxDuration(duration);
+                        (*itr)->GetHolder()->SetAuraMaxDuration(duration);
                         (*itr)->GetHolder()->RefreshHolder();
                         return SPELL_AURA_PROC_OK;
                     }
@@ -2449,6 +2449,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit *pVictim, uint32 damage, Aura
                         case POWER_ENERGY: triggered_spell_id = 71882; break;
                         case POWER_RAGE:   triggered_spell_id = 71883; break;
                         case POWER_MANA:   triggered_spell_id = 71881; break;
+                        case POWER_RUNIC_POWER:   triggered_spell_id = 71884; break;
                         default:
                             return SPELL_AURA_PROC_FAILED;
                     }
@@ -2465,6 +2466,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit *pVictim, uint32 damage, Aura
                         case POWER_ENERGY: triggered_spell_id = 71887; break;
                         case POWER_RAGE:   triggered_spell_id = 71886; break;
                         case POWER_MANA:   triggered_spell_id = 71888; break;
+                        case POWER_RUNIC_POWER:   triggered_spell_id = 71885; break;
                         default:
                             return SPELL_AURA_PROC_FAILED;
                     }
@@ -2706,7 +2708,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit *pVictim, uint32 damage, Aura
                         if (aurHolder)
                         {
                             int32 amount = aur->GetAuraDuration() + triggerAmount * IN_MILLISECONDS;
-                            aur->SetAuraDuration(amount);
+                            aurHolder->SetAuraDuration(amount);
                             aurHolder->SendAuraUpdate(false);
                             return SPELL_AURA_PROC_OK;
                         }
@@ -4494,6 +4496,21 @@ SpellAuraProcResult Unit::HandlePeriodicDummyAuraProc(Unit* /*pVictim*/, uint32 
 
     switch (spellProto->SpellFamilyName)
     {
+        case SPELLFAMILY_GENERIC:
+        {
+            switch (spellProto->Id)
+            {
+                case 66334:                                 // Mistress' Kiss (Trial of the Crusader, ->
+                case 67905:                                 // -> Lord Jaraxxus encounter, all difficulties)
+                case 67906:                                 // ----- // -----
+                case 67907:                                 // ----- // -----
+                {
+                    CastSpell(this, 66359, true, NULL, triggeredByAura);
+                    break;
+                }
+            }
+            break;
+        }
         case SPELLFAMILY_DEATHKNIGHT:
         {
             switch (spellProto->SpellIconID)

@@ -141,8 +141,8 @@ template uint32 IdGenerator<uint32>::Generate();
 template uint64 IdGenerator<uint64>::Generate();
 
 ObjectMgr::ObjectMgr() :
-    m_CreatureFirstGuid(1),
-    m_GameObjectFirstGuid(1),
+    m_FirstTemporaryCreatureGuid(1),
+    m_FirstTemporaryGameObjectGuid(1),
 
     m_ArenaTeamIds("Arena team ids"),
     m_AuctionIds("Auction ids"),
@@ -3754,8 +3754,8 @@ void ObjectMgr::LoadGroups()
 {
     // -- loading groups --
     uint32 count = 0;
-    //                                                    0         1              2           3           4              5      6      7      8      9      10     11     12     13         14          15              16          17
-    QueryResult *result = CharacterDatabase.Query("SELECT mainTank, mainAssistant, lootMethod, looterGuid, lootThreshold, icon1, icon2, icon3, icon4, icon5, icon6, icon7, icon8, groupType, difficulty, raiddifficulty, leaderGuid, groupId FROM groups");
+    //                                                    0           1           2              3      4      5      6      7      8      9      10     11         12          13              14          15
+    QueryResult *result = CharacterDatabase.Query("SELECT lootMethod, looterGuid, lootThreshold, icon1, icon2, icon3, icon4, icon5, icon6, icon7, icon8, groupType, difficulty, raiddifficulty, leaderGuid, groupId FROM groups");
 
     if (!result)
     {
@@ -3792,8 +3792,8 @@ void ObjectMgr::LoadGroups()
 
     // -- loading members --
     count = 0;
-    //                                       0           1          2         3
-    result = CharacterDatabase.Query("SELECT memberGuid, assistant, subgroup, groupId FROM group_member ORDER BY groupId");
+    //                                       0           1            2         3        4
+    result = CharacterDatabase.Query("SELECT memberGuid, memberFlags, subgroup, groupId, roles FROM group_member ORDER BY groupId");
     if (!result)
     {
         barGoLink bar2( 1 );
@@ -3812,9 +3812,10 @@ void ObjectMgr::LoadGroups()
 
             uint32 memberGuidlow = fields[0].GetUInt32();
             ObjectGuid memberGuid = ObjectGuid(HIGHGUID_PLAYER, memberGuidlow);
-            bool   assistent     = fields[1].GetBool();
+            uint8  flags         = fields[1].GetUInt8();
             uint8  subgroup      = fields[2].GetUInt8();
             uint32 groupId       = fields[3].GetUInt32();
+            uint8  roles         = fields[4].GetUInt8();
             if (!group || group->GetId() != groupId)
             {
                 group = GetGroupById(groupId);
@@ -3827,7 +3828,7 @@ void ObjectMgr::LoadGroups()
                 }
             }
 
-            if (!group->LoadMemberFromDB(memberGuidlow, subgroup, assistent))
+            if (!group->LoadMemberFromDB(memberGuidlow, subgroup, GroupFlagMask(flags), roles))
             {
                 sLog.outErrorDb("Incorrect entry in group_member table : member %s cannot be added to group (Id: %u)!",
                     memberGuid.GetString().c_str(), groupId);
@@ -3917,8 +3918,34 @@ void ObjectMgr::LoadGroups()
                 sLog.outErrorDb("ObjectMgr::Wrong reset time in group_instance corrected to: %d", resetTime);
             }
 
-            DungeonPersistentState *state = (DungeonPersistentState*)sMapPersistentStateMgr.AddPersistentState(mapEntry, fields[2].GetUInt32(), Difficulty(diff), (time_t)resetTime, (fields[6].GetUInt32() == 0), true, true, encountersMask);
-            group->BindToInstance(state, fields[3].GetBool(), true);
+            if (resetTime < (time(NULL)))
+            {
+                DEBUG_LOG("ObjectMgr::Loading extended instance for player: %d", leaderGuidLow);
+                bool isExtended = false;
+                QueryResult* result1 = CharacterDatabase.PQuery("SELECT COUNT(guid) FROM character_instance WHERE instance = '%u' AND extend = 1 ", fields[1].GetUInt32());
+                if (result1)
+                {
+                    Field *fields1=result->Fetch();
+                    isExtended = fields1[0].GetBool();
+                    delete result1;
+                }
+                if (isExtended)
+                {
+                    MapDifficultyEntry const* mapDiff = GetMapDifficultyData(mapId,diff);
+                    resetTime = DungeonResetScheduler::CalculateNextResetTime(mapDiff, time(NULL));
+                    DungeonPersistentState* state = (DungeonPersistentState*)sMapPersistentStateMgr.AddPersistentState(mapEntry, fields[2].GetUInt32(), Difficulty(diff), (time_t)resetTime, (fields[6].GetUInt32() == 0), true, true, encountersMask);
+                    state->SetExtended(isExtended);
+                    group->BindToInstance(state, true && isExtended, true);
+                }
+                else
+                    sLog.outErrorDb("ObjectMgr::Loaded instance %d with expired resetTime %u, but his not extended.", fields[2].GetUInt32(), resetTime);
+            }
+            else
+            {
+                DungeonPersistentState *state = (DungeonPersistentState*)sMapPersistentStateMgr.AddPersistentState(mapEntry, fields[2].GetUInt32(), Difficulty(diff), (time_t)resetTime, (fields[6].GetUInt32() == 0), true, true, encountersMask);
+                group->BindToInstance(state, fields[3].GetBool(), true);
+            }
+
         }while( result->NextRow() );
         delete result;
     }
@@ -5849,7 +5876,7 @@ void ObjectMgr::SetHighestGuids()
     result = WorldDatabase.Query( "SELECT MAX(guid) FROM creature" );
     if( result )
     {
-        m_CreatureFirstGuid = (*result)[0].GetUInt32()+1;
+        m_FirstTemporaryCreatureGuid = (*result)[0].GetUInt32()+1;
         delete result;
     }
 
@@ -5878,7 +5905,7 @@ void ObjectMgr::SetHighestGuids()
     result = WorldDatabase.Query("SELECT MAX(guid) FROM gameobject" );
     if( result )
     {
-        m_GameObjectFirstGuid = (*result)[0].GetUInt32()+1;
+        m_FirstTemporaryGameObjectGuid = (*result)[0].GetUInt32()+1;
         delete result;
     }
 
@@ -5930,6 +5957,13 @@ void ObjectMgr::SetHighestGuids()
         m_GroupGuids.Set((*result)[0].GetUInt32()+1);
         delete result;
     }
+
+    // setup reserved ranges for static guids spawn
+    m_StaticCreatureGuids.Set(m_FirstTemporaryCreatureGuid);
+    m_FirstTemporaryCreatureGuid += sWorld.getConfig(CONFIG_UINT32_GUID_RESERVE_SIZE_CREATURE);
+
+    m_StaticGameObjectGuids.Set(m_FirstTemporaryGameObjectGuid);
+    m_FirstTemporaryGameObjectGuid += sWorld.getConfig(CONFIG_UINT32_GUID_RESERVE_SIZE_GAMEOBJECT);
 }
 
 void ObjectMgr::LoadGameObjectLocales()
@@ -8462,7 +8496,7 @@ void ObjectMgr::LoadTrainerTemplates()
         {
             if (cInfo->trainerId)
             {
-                if (trainer_ids.count(cInfo->trainerId) > 0)
+                if (m_mCacheTrainerTemplateSpellMap.find(cInfo->trainerId) != m_mCacheTrainerTemplateSpellMap.end())
                     trainer_ids.erase(cInfo->trainerId);
                 else
                     sLog.outErrorDb("Creature (Entry: %u) has trainer_id = %u for nonexistent trainer template", cInfo->Entry, cInfo->trainerId);
