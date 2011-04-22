@@ -33,6 +33,7 @@
 #include "MapPersistentStateMgr.h"
 #include "Util.h"
 #include "LootMgr.h"
+#include "LFGMgr.h"
 
 #define LOOT_ROLL_TIMEOUT  (1*MINUTE*IN_MILLISECONDS)
 
@@ -345,6 +346,8 @@ bool Group::AddMember(ObjectGuid guid, const char* name)
         // quest related GO state dependent from raid membership
         if(isRaidGroup())
             player->UpdateForQuestWorldObjects();
+
+        sLFGMgr.Leave(player);
     }
 
     return true;
@@ -389,6 +392,8 @@ uint32 Group::RemoveMember(ObjectGuid guid, uint8 method)
             }
 
             _homebindIfInstance(player);
+
+            sLFGMgr.Leave(player);
         }
 
         if (leaderChanged)
@@ -412,6 +417,8 @@ void Group::ChangeLeader(ObjectGuid guid)
     member_citerator slot = _getMemberCSlot(guid);
     if (slot == m_memberSlots.end())
         return;
+
+    sLFGMgr.Leave(this);
 
     _setLeader(guid);
 
@@ -1402,7 +1409,7 @@ void Group::SetGroupUniqueFlag(ObjectGuid guid, GroupFlagsAssignment assignment,
             {
                 if (itr->guid != guid )
                 {
-                    if (itr->flags & mask)
+                    if ((itr->flags & mask) && sWorld.getConfig(CONFIG_BOOL_RAID_FLAGS_UNIQUE))
                     {
                         GroupFlagMask oldMask = itr->flags;
                         itr->flags = GroupFlagMask(oldMask & ~mask);
@@ -1618,7 +1625,7 @@ GroupJoinBattlegroundResult Group::CanJoinBattleGroundQueue(BattleGround const* 
 
     uint32 allowedPlayerCount = 0;
 
-    BattleGroundQueueTypeId bgQueueTypeIdRandom = BattleGroundMgr::BGQueueTypeId(BATTLEGROUND_RB, 0);
+    BattleGroundQueueTypeId bgQueueTypeIdRandom = BattleGroundMgr::BGQueueTypeId(BATTLEGROUND_RB, ARENA_TYPE_NONE);
 
     // check every member of the group to be able to join
     for(GroupReference *itr = GetFirstMember(); itr != NULL; itr = itr->next())
@@ -1893,7 +1900,7 @@ void Group::BroadcastGroupUpdate(void)
             }
             for(uint32 i = 0; i < MAX_TOTEM_SLOT; ++i)
             {
-                if(Unit *totem = pp->GetMap()->GetUnit(pp->GetTotemGUID(TotemSlot(i))))
+                if(Unit *totem = pp->GetMap()->GetUnit(pp->GetTotemGuid(TotemSlot(i))))
                 {
                     totem->ForceValuesUpdateAtIndex(UNIT_FIELD_BYTES_2);
                     totem->ForceValuesUpdateAtIndex(UNIT_FIELD_FACTIONTEMPLATE);

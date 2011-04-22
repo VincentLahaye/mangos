@@ -718,12 +718,6 @@ enum SplineType
     SPLINETYPE_FACINGANGLE  = 4
 };
 
-struct Position
-{
-    Position() : x(0.0f), y(0.0f), z(0.0f), o(0.0f) {}
-    float x, y, z, o;
-};
-
 class MovementInfo
 {
     friend class AntiCheat;
@@ -1582,7 +1576,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         CharmInfo* GetCharmInfo() { return m_charmInfo; }
         CharmInfo* InitCharmInfo(Unit* charm);
 
-        uint64 const& GetTotemGUID(TotemSlot slot) const { return m_TotemSlot[slot]; }
+        ObjectGuid const& GetTotemGuid(TotemSlot slot) const { return m_TotemSlot[slot]; }
         Totem* GetTotem(TotemSlot slot) const;
         bool IsAllTotemSlotsUsed() const;
 
@@ -1605,6 +1599,8 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         void RemoveSpellAuraHolder(SpellAuraHolder *holder, AuraRemoveMode mode = AURA_REMOVE_BY_DEFAULT);
         void RemoveSingleAuraFromSpellAuraHolder(SpellAuraHolder *holder, SpellEffectIndex index, AuraRemoveMode mode = AURA_REMOVE_BY_DEFAULT);
         void RemoveSingleAuraFromSpellAuraHolder(uint32 id, SpellEffectIndex index, uint64 casterGUID, AuraRemoveMode mode = AURA_REMOVE_BY_DEFAULT);
+
+        void AddSpellAuraHolderToRemoveList(SpellAuraHolder* holder) { m_deletedHolders.push_back(holder);};
 
         // removing specific aura stacks by diff reasons and selections
         void RemoveAurasDueToSpell(uint32 spellId, SpellAuraHolder* except = NULL, AuraRemoveMode mode = AURA_REMOVE_BY_DEFAULT);
@@ -1820,9 +1816,9 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
 
         uint32 m_AuraFlags;
 
-        uint32 GetDisplayId() { return GetUInt32Value(UNIT_FIELD_DISPLAYID); }
+        uint32 GetDisplayId() const { return GetUInt32Value(UNIT_FIELD_DISPLAYID); }
         void SetDisplayId(uint32 modelId);
-        uint32 GetNativeDisplayId() { return GetUInt32Value(UNIT_FIELD_NATIVEDISPLAYID); }
+        uint32 GetNativeDisplayId() const { return GetUInt32Value(UNIT_FIELD_NATIVEDISPLAYID); }
         void SetNativeDisplayId(uint32 modelId) { SetUInt32Value(UNIT_FIELD_NATIVEDISPLAYID, modelId); }
         void setTransForm(uint32 spellid) { m_transform = spellid;}
         uint32 getTransForm() const { return m_transform;}
@@ -2141,7 +2137,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         uint32 m_ThreatRedirectionPercent;
         uint64 m_misdirectionTargetGUID;
 
-        uint64 m_TotemSlot[MAX_TOTEM_SLOT];
+        ObjectGuid m_TotemSlot[MAX_TOTEM_SLOT];
 
     private:                                                // Error traps for some wrong args using
         // this will catch and prevent build for any cases when all optional args skipped and instead triggered used non boolean type

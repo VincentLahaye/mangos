@@ -32,6 +32,7 @@ struct ItemPrototype;
 struct AuctionEntry;
 struct AuctionHouseEntry;
 struct DeclinedName;
+struct LFGReward;
 
 class ObjectGuid;
 class Creature;
@@ -47,6 +48,7 @@ class CharacterHandler;
 class GMTicket;
 class MovementInfo;
 class WorldSession;
+class Quest;
 
 struct OpcodeHandler;
 
@@ -130,6 +132,28 @@ enum PartyResult
     ERR_PARTY_LFG_TELEPORT_IN_COMBAT    = 30
 };
 
+enum LfgJoinResult
+{
+    ERR_LFG_OK                                  = 0x00,
+    ERR_LFG_ROLE_CHECK_FAILED                   = 0x01, 
+    ERR_LFG_GROUP_FULL                          = 0x02, 
+    ERR_LFG_NO_LFG_OBJECT                       = 0x04, 
+    ERR_LFG_NO_SLOTS_PLAYER                     = 0x05, 
+    ERR_LFG_NO_SLOTS_PARTY                      = 0x06, 
+    ERR_LFG_MISMATCHED_SLOTS                    = 0x07, 
+    ERR_LFG_PARTY_PLAYERS_FROM_DIFFERENT_REALMS = 0x08, 
+    ERR_LFG_MEMBERS_NOT_PRESENT                 = 0x09, 
+    ERR_LFG_GET_INFO_TIMEOUT                    = 0x0A, 
+    ERR_LFG_INVALID_SLOT                        = 0x0B, 
+    ERR_LFG_DESERTER_PLAYER                     = 0x0C, 
+    ERR_LFG_DESERTER_PARTY                      = 0x0D, 
+    ERR_LFG_RANDOM_COOLDOWN_PLAYER              = 0x0E, 
+    ERR_LFG_RANDOM_COOLDOWN_PARTY               = 0x0F, 
+    ERR_LFG_TOO_MANY_MEMBERS                    = 0x10, 
+    ERR_LFG_CANT_USE_DUNGEONS                   = 0x11, 
+    ERR_LFG_ROLE_CHECK_FAILED2                  = 0x12, 
+};
+
 enum ChatRestrictionType
 {
     ERR_CHAT_RESTRICTED = 0,
@@ -159,6 +183,7 @@ class PacketFilter
     protected:
         WorldSession * const m_pSession;
 };
+
 //process only thread-safe packets in Map::Update()
 class MapSessionFilter : public PacketFilter
 {
@@ -330,7 +355,6 @@ class MANGOS_DLL_SPEC WorldSession
         void SendPetitionShowList(ObjectGuid guid);
         void SendSaveGuildEmblem( uint32 msg );
 
-
         void BuildPartyMemberStatsChangedPacket(Player *player, WorldPacket *data);
 
         void DoLootRelease(ObjectGuid lguid);
@@ -348,8 +372,6 @@ class MANGOS_DLL_SPEC WorldSession
         uint32 getDialogStatus(Player *pPlayer, Object* questgiver, uint32 defstatus);
 
         // LFG
-        void SendLfgResult(uint32 type, uint32 entry, uint8 lfg_type);
-        void SendLfgUpdate(uint8 unk1, uint8 unk2, uint8 unk3);
         // TRUE values set by client sending CMSG_LFG_SET_AUTOJOIN and CMSG_LFM_CLEAR_AUTOFILL before player login
         bool LookingForGroup_auto_join;
         bool LookingForGroup_auto_add;
@@ -374,7 +396,6 @@ class MANGOS_DLL_SPEC WorldSession
         // new
         void HandleMoveUnRootAck(WorldPacket& recvPacket);
         void HandleMoveRootAck(WorldPacket& recvPacket);
-        void HandleLookingForGroup(WorldPacket& recvPacket);
 
         // new inspect
         void HandleInspectOpcode(WorldPacket& recvPacket);
@@ -454,7 +475,6 @@ class MANGOS_DLL_SPEC WorldSession
         void HandleSetActionButtonOpcode(WorldPacket& recvPacket);
 
         void HandleGameObjectUseOpcode(WorldPacket& recPacket);
-        void HandleMeetingStoneInfoOpcode(WorldPacket& recPacket);
         void HandleGameobjectReportUse(WorldPacket& recvPacket);
 
         void HandleNameQueryOpcode(WorldPacket& recvPacket);
@@ -492,6 +512,7 @@ class MANGOS_DLL_SPEC WorldSession
         void HandleGroupSetLeaderOpcode(WorldPacket& recvPacket);
         void HandleGroupDisbandOpcode(WorldPacket& recvPacket);
         void HandleOptOutOfLootOpcode( WorldPacket &recv_data );
+        void HandleSetAllowLowLevelRaidOpcode( WorldPacket & recv_data );
         void HandleLootMethodOpcode(WorldPacket& recvPacket);
         void HandleLootRoll( WorldPacket &recv_data );
         void HandleRequestPartyMemberStatsOpcode( WorldPacket &recv_data );
@@ -815,7 +836,7 @@ class MANGOS_DLL_SPEC WorldSession
         void HandleEquipmentSetSaveOpcode(WorldPacket& recv_data);
         void HandleEquipmentSetDeleteOpcode(WorldPacket& recv_data);
         void HandleEquipmentSetUseOpcode(WorldPacket& recv_data);
-        void HandleWorldStateUITimerUpdateOpcode(WorldPacket& recv_data);
+        void HandleUITimeRequestOpcode(WorldPacket& recv_data);
         void HandleReadyForAccountDataTimesOpcode(WorldPacket& recv_data);
         void HandleQueryQuestsCompletedOpcode(WorldPacket& recv_data);
         void HandleQuestPOIQueryOpcode(WorldPacket& recv_data);
@@ -825,14 +846,9 @@ class MANGOS_DLL_SPEC WorldSession
         void HandleAcceptGrantLevel(WorldPacket& recv_data);
 
         // LFG
-        void HandleSetLfgOpcode(WorldPacket& recv_data);
         void HandleLfgJoinOpcode(WorldPacket& recv_data);
         void HandleLfgLeaveOpcode(WorldPacket& recv_data);
-        void HandleSearchLfgJoinOpcode(WorldPacket& recv_data);
-        void HandleSearchLfgLeaveOpcode(WorldPacket& recv_data);
         void HandleLfgClearOpcode(WorldPacket& recv_data);
-        void HandleLfmClearOpcode(WorldPacket& recv_data);
-        void HandleSetLfmOpcode(WorldPacket& recv_data);
         void HandleSetLfgCommentOpcode(WorldPacket& recv_data);
         void HandleLfgSetRolesOpcode(WorldPacket& recv_data);
         //
@@ -841,11 +857,20 @@ class MANGOS_DLL_SPEC WorldSession
         void HandleLfgPlayerLockInfoRequestOpcode(WorldPacket &recv_data);
         void HandleLfgTeleportOpcode(WorldPacket &recv_data);
         void HandleLfgPartyLockInfoRequestOpcode(WorldPacket &recv_data);
-        // send date
-        void SendLfgUpdatePlayer(LFGUpdateType updateType);
-        void SendLfgUpdateParty(LFGUpdateType updateType);
+        // send data
+        void SendLfgUpdatePlayer(LFGUpdateType updateType, LFGType type);
+        void SendLfgUpdateParty(LFGUpdateType updateType, LFGType type);
         void SendLfgUpdateSearch(bool update);
-        void SendLfgJoinResult(LFGJoinResult checkResult, uint8 checkValue = 0);
+        void SendLfgJoinResult(LFGJoinResult checkResult, uint8 checkValue = 0, bool withLockMap = false);
+        void SendLfgPlayerReward(LFGDungeonEntry const* dungeon, const LFGReward* reward, const Quest* qRew, bool isSecond = false);
+        // LFR
+        void HandleLfrSearchOpcode(WorldPacket& recv_data);
+        void HandleLfrLeaveOpcode(WorldPacket& recv_data);
+        // send data
+        void SendLfgUpdateList(uint32 dungeonEntry);
+        void SendLfgDisabled();
+        void SendLfgOfferContinue(uint32 dungeonEntry);
+        void SendLfgTeleportError(uint8 err);
 
     private:
         // private trade methods
