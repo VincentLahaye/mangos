@@ -27,6 +27,7 @@ INSERT INTO spell_proc_event (entry, SchoolMask, SpellFamilyName, SpellFamilyMas
 -- from FallenangelX
 DELETE FROM `spell_proc_event` WHERE `entry` IN (51682); 
 INSERT INTO `spell_proc_event` VALUES 
+<<<<<<< HEAD
 (51682, 
 0x00,  
 8, 
@@ -44,3 +45,6 @@ INSERT INTO `spell_proc_event` VALUES
 0.000000, 
 0.000000,  
 0); 
+=======
+(51682, 0x00,  8, 0x10014000, 0x10014000, 0x10014000, 0x00080000, 0x00080000, 0x00080000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0.000000, 0.000000,  0);
+>>>>>>> 4b9f26edca4da1d48de690a58ecb4ce78ebb017f
