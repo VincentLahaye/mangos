@@ -38,6 +38,7 @@
 #include "AuctionHouseMgr.h"
 #include "ObjectMgr.h"
 #include "CreatureEventAIMgr.h"
+#include "GuildMgr.h"
 #include "SpellMgr.h"
 #include "Chat.h"
 #include "DBCStores.h"
@@ -1271,7 +1272,7 @@ void World::SetInitialWorldSettings()
     sLog.outString();
 
     sLog.outString( "Loading Guilds..." );
-    sObjectMgr.LoadGuilds();
+    sGuildMgr.LoadGuilds();
 
     sLog.outString( "Loading ArenaTeams..." );
     sObjectMgr.LoadArenaTeams();
@@ -1438,7 +1439,8 @@ void World::DetectDBCLang()
         m_lang_confid = LOCALE_enUS;
     }
 
-    ChrRacesEntry const* race = sChrRacesStore.LookupEntry(1);
+    ChrRacesEntry const* race = sChrRacesStore.LookupEntry(RACE_HUMAN);
+    MANGOS_ASSERT(race);
 
     std::string availableLocalsStr;
 
@@ -1509,7 +1511,6 @@ void World::Update(uint32 diff)
     /// <ul><li> Handle auctions when the timer has passed
     if (m_timers[WUPDATE_AUCTIONS].Passed())
     {
-        auctionbot.Update();
         m_timers[WUPDATE_AUCTIONS].Reset();
 
         ///- Update mails (return old mails with item, or delete them)
@@ -1522,6 +1523,8 @@ void World::Update(uint32 diff)
 
         ///- Handle expired auctions
         sAuctionMgr.Update();
+
+        auctionbot.Update();
     }
 
     /// <li> Handle session updates
