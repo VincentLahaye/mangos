@@ -505,7 +505,7 @@ void WorldSession::HandleAddFriendOpcodeCallBack(QueryResult *result, uint32 acc
 
 void WorldSession::HandleDelFriendOpcode( WorldPacket & recv_data )
 {
-    uint64 friendGuid;
+    ObjectGuid friendGuid;
 
     DEBUG_LOG( "WORLD: Received CMSG_DEL_FRIEND" );
 
@@ -575,7 +575,7 @@ void WorldSession::HandleAddIgnoreOpcodeCallBack(QueryResult *result, uint32 acc
 
 void WorldSession::HandleDelIgnoreOpcode( WorldPacket & recv_data )
 {
-    uint64 ignoreGuid;
+    ObjectGuid ignoreGuid;
 
     DEBUG_LOG( "WORLD: Received CMSG_DEL_IGNORE" );
 
@@ -783,8 +783,13 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPacket & recv_data)
 
             // need find areatrigger to inner dungeon for landing point
             if (at->target_mapId != corpseMapId)
+            {
                 if (AreaTrigger const* corpseAt = sObjectMgr.GetMapEntranceTrigger(corpseMapId))
+                {
                     at = corpseAt;
+                    targetMapEntry = sMapStore.LookupEntry(at->target_mapId);
+                }
+            }
 
             // now we can resurrect player, and then check teleport requirements
             pl->ResurrectPlayer(0.5f);
