@@ -339,7 +339,7 @@ pAuraHandler AuraHandler[TOTAL_AURAS]=
     &Aura::HandleAuraModAttackPowerOfArmor,                 //285 SPELL_AURA_MOD_ATTACK_POWER_OF_ARMOR  implemented in Player::UpdateAttackPowerAndDamage
     &Aura::HandleNoImmediateEffect,                         //286 SPELL_AURA_ABILITY_PERIODIC_CRIT      implemented in Aura::IsCritFromAbilityAura called from Aura::PeriodicTick
     &Aura::HandleNoImmediateEffect,                         //287 SPELL_AURA_DEFLECT_SPELLS             implemented in Unit::MagicSpellHitResult and Unit::MeleeSpellHitResult
-    &Aura::HandleNULL,                                      //288 increase parry/deflect, prevent attack (single spell used 67801)
+    &Aura::HandleNoImmediateEffect,                         //288 SPELL_AURA_MOD_PARRY_FROM_BEHIND_PERCENT percent from normal parry/deflect applied to from behind attack case (single spell used 67801, also look 4.1.0 spell 97574)
     &Aura::HandleUnused,                                    //289 unused (3.2.2a)
     &Aura::HandleAuraModAllCritChance,                      //290 SPELL_AURA_MOD_ALL_CRIT_CHANCE
     &Aura::HandleNoImmediateEffect,                         //291 SPELL_AURA_MOD_QUEST_XP_PCT           implemented in Player::GiveXP
@@ -1008,7 +1008,7 @@ void Aura::ReapplyAffectedPassiveAuras( Unit* target, bool owner_mode )
 
         for(std::map<uint32, ObjectGuid>::const_iterator map_itr = affectedSelf.begin(); map_itr != affectedSelf.end(); ++map_itr)
         {
-            Item* item = pTarget && !map_itr->second.IsEmpty() ? pTarget->GetItemByGuid(map_itr->second) : NULL;
+            Item* item = pTarget && map_itr->second ? pTarget->GetItemByGuid(map_itr->second) : NULL;
             target->RemoveAurasDueToSpell(map_itr->first);
             target->CastSpell(target, map_itr->first, true, item);
         }
@@ -1118,7 +1118,7 @@ void Aura::TriggerSpell()
     ObjectGuid casterGUID = GetCasterGuid();
     Unit* triggerTarget = GetTriggerTarget();
 
-    if (casterGUID.IsEmpty() || !triggerTarget)
+    if (!casterGUID || !triggerTarget)
         return;
 
     // generic casting code with custom spells and target/caster customs
@@ -1971,9 +1971,46 @@ void Aura::TriggerSpell()
         }
     }
 
+    Unit* triggerCaster = triggerTarget;
+    WorldObject* triggerTargetObject = NULL;
+
+    // for channeled spell cast applied from aura owner to channel target (persistent aura affects already applied to true target)
+    // come periodic casts applied to targets, so need seelct proper caster (ex. 15790)
+    if (IsChanneledSpell(GetSpellProto()) && GetSpellProto()->Effect[GetEffIndex()] != SPELL_EFFECT_PERSISTENT_AREA_AURA)
+    {
+        // interesting 2 cases: periodic aura at caster of channeled spell
+        if (target->GetObjectGuid() == casterGUID)
+        {
+            triggerCaster = target;
+
+            if (WorldObject* channelTarget = target->GetMap()->GetWorldObject(target->GetChannelObjectGuid()))
+            {
+                if (channelTarget->isType(TYPEMASK_UNIT))
+                    triggerTarget = (Unit*)channelTarget;
+                else
+                    triggerTargetObject = channelTarget;
+            }
+        }
+        // or periodic aura at caster channel target
+        else if (Unit* caster = GetCaster())
+        {
+            if (target->GetObjectGuid() == caster->GetChannelObjectGuid())
+            {
+                triggerCaster = caster;
+                triggerTarget = target;
+            }
+        }
+    }
+
     // All ok cast by default case
     if (triggeredSpellInfo)
-        triggerTarget->CastSpell(triggerTarget, triggeredSpellInfo, true, NULL, this, casterGUID);
+    {
+        if (triggerTargetObject)
+            triggerCaster->CastSpell(triggerTargetObject->GetPositionX(), triggerTargetObject->GetPositionY(), triggerTargetObject->GetPositionZ(),
+                triggeredSpellInfo, true, NULL, this, casterGUID);
+        else
+            triggerCaster->CastSpell(triggerTarget, triggeredSpellInfo, true, NULL, this, casterGUID);
+    }
     else
     {
         if (Unit* caster = GetCaster())
@@ -1989,7 +2026,7 @@ void Aura::TriggerSpellWithValue()
     ObjectGuid casterGuid = GetCasterGuid();
     Unit* target = GetTriggerTarget();
 
-    if (casterGuid.IsEmpty() || !target)
+    if (!casterGuid || !target)
         return;
 
     // generic casting code with custom spells and target/caster customs
@@ -2500,6 +2537,17 @@ void Aura::HandleAuraDummy(bool apply, bool Real)
             case 12479:                                     // Hex of Jammal'an
                 target->CastSpell(target, 12480, true, NULL, this);
                 return;
+            case 12774:                                     // (DND) Belnistrasz Idol Shutdown Visual
+            {
+                if (m_removeMode == AURA_REMOVE_BY_DEATH)
+                    return;
+
+                // Idom Rool Camera Shake <- wtf, don't drink while making spellnames?
+                if (Unit* caster = GetCaster())
+                    caster->CastSpell(caster, 12816, true);
+
+                return;
+            }
             case 28169:                                     // Mutating Injection
             {
                 // Mutagen Explosion
@@ -7139,7 +7187,7 @@ void Aura::HandleAuraRetainComboPoints(bool apply, bool Real)
 
     // combo points was added in SPELL_EFFECT_ADD_COMBO_POINTS handler
     // remove only if aura expire by time (in case combo points amount change aura removed without combo points lost)
-    if (!apply && m_removeMode == AURA_REMOVE_BY_EXPIRE && !target->GetComboTargetGuid().IsEmpty())
+    if (!apply && m_removeMode == AURA_REMOVE_BY_EXPIRE && target->GetComboTargetGuid())
         if (Unit* unit = ObjectAccessor::GetUnit(*GetTarget(),target->GetComboTargetGuid()))
             target->AddComboPoints(unit, -m_modifier.m_amount);
 }
@@ -9088,7 +9136,7 @@ void SpellAuraHolder::_AddSpellAuraHolder()
     {
         if (m_spellProto->Attributes & SPELL_ATTR_DISABLED_WHILE_ACTIVE)
         {
-            Item* castItem = !m_castItemGuid.IsEmpty() ? ((Player*)caster)->GetItemByGuid(m_castItemGuid) : NULL;
+            Item* castItem = m_castItemGuid ? ((Player*)caster)->GetItemByGuid(m_castItemGuid) : NULL;
             ((Player*)caster)->AddSpellAndCategoryCooldowns(m_spellProto,castItem ? castItem->GetEntry() : 0, NULL,true);
         }
     }
@@ -9408,7 +9456,7 @@ Unit* SpellAuraHolder::GetCaster() const
 bool SpellAuraHolder::IsWeaponBuffCoexistableWith(SpellAuraHolder const* ref) const
 {
     // only item casted spells
-    if (GetCastItemGuid().IsEmpty())
+    if (!GetCastItemGuid())
         return false;
 
     // Exclude Debuffs
@@ -9437,7 +9485,7 @@ bool SpellAuraHolder::IsWeaponBuffCoexistableWith(SpellAuraHolder const* ref) co
         return false;
 
     // form different weapons
-    return !ref->GetCastItemGuid().IsEmpty() && ref->GetCastItemGuid() != GetCastItemGuid();
+    return ref->GetCastItemGuid() && ref->GetCastItemGuid() != GetCastItemGuid();
 }
 
 bool SpellAuraHolder::IsNeedVisibleSlot(Unit const* caster) const

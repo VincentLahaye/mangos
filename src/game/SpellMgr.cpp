@@ -2315,6 +2315,10 @@ bool SpellMgr::IsNoStackSpellDueToSpell(uint32 spellId_1, uint32 spellId_2) cons
                     ((spellInfo_2->SpellFamilyFlags & UI64LIT(0x4)) && (spellInfo_1->SpellFamilyFlags & UI64LIT(0x00000004000))))
                     return false;
 
+                // Deterrence
+                if (spellInfo_1->SpellIconID == 83 && spellInfo_2->SpellIconID == 83)
+                    return false;
+
                 // Bestial Wrath
                 if (spellInfo_1->SpellIconID == 1680 && spellInfo_2->SpellIconID == 1680)
                     return false;
@@ -2360,12 +2364,17 @@ bool SpellMgr::IsNoStackSpellDueToSpell(uint32 spellId_1, uint32 spellId_2) cons
                 if (spellInfo_1->SpellIconID == 3837 && spellInfo_2->SpellIconID == 3837)
                     return false;
 
+                // Blood Corruption, Holy Vengeance, Righteous Vengeance
+                if ((spellInfo_1->SpellIconID == 2292 && spellInfo_2->SpellIconID == 3025) ||
+                    (spellInfo_2->SpellIconID == 2292 && spellInfo_1->SpellIconID == 3025))
+                    return false;
+
                 // Blessing of Sanctuary (multi-family check, some from 16 spell icon spells)
                 if (spellInfo_2->Id == 67480 && spellInfo_1->Id == 20911)
                     return false;
 
                 // Inner Fire and Consecration
-                if(spellInfo_2->SpellFamilyName == SPELLFAMILY_PRIEST)
+                if (spellInfo_2->SpellFamilyName == SPELLFAMILY_PRIEST)
                     if(spellInfo_1->SpellIconID == 51 && spellInfo_2->SpellIconID == 51)
                         return false;
 

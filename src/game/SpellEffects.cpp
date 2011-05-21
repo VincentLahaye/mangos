@@ -2988,6 +2988,7 @@ void Spell::EffectDummy(SpellEffectIndex eff_idx)
                 }
                 case 31231:                                 // Cheat Death
                 {
+                    // Cheating Death
                     m_caster->CastSpell(m_caster, 45182, true);
                     return;
                 }
@@ -4676,7 +4677,7 @@ void Spell::EffectEnergisePct(SpellEffectIndex eff_idx)
     m_caster->EnergizeBySpell(unitTarget, m_spellInfo->Id, gain, power);
 }
 
-void Spell::SendLoot(ObjectGuid guid, LootType loottype)
+void Spell::SendLoot(ObjectGuid guid, LootType loottype, LockType lockType)
 {
     if (gameObjTarget)
     {
@@ -4695,8 +4696,16 @@ void Spell::SendLoot(ObjectGuid guid, LootType loottype)
                 // Don't return, let loots been taken
                 break;
 
+            case GAMEOBJECT_TYPE_TRAP:
+                if (lockType == LOCKTYPE_DISARM_TRAP)
+                {
+                    gameObjTarget->SetLootState(GO_JUST_DEACTIVATED);
+                    return;
+                }
+                sLog.outError("Spell::SendLoot unhandled locktype %u for GameObject trap (entry %u) for spell %u.", lockType, gameObjTarget->GetEntry(), m_spellInfo->Id);
+                return;
             default:
-                sLog.outError("Spell::SendLoot unhandled GameObject type %u (entry %u).", gameObjTarget->GetGoType(), gameObjTarget->GetEntry());
+                sLog.outError("Spell::SendLoot unhandled GameObject type %u (entry %u).", gameObjTarget->GetGoType(), gameObjTarget->GetEntry(), m_spellInfo->Id);
                 return;
         }
     }
@@ -4779,7 +4788,7 @@ void Spell::EffectOpenLock(SpellEffectIndex eff_idx)
     if (itemTarget)
         itemTarget->SetFlag(ITEM_FIELD_FLAGS, ITEM_DYNFLAG_UNLOCKED);
 
-    SendLoot(guid, LOOT_SKINNING);
+    SendLoot(guid, LOOT_SKINNING, LockType(m_spellInfo->EffectMiscValue[eff_idx]));
 
     // not allow use skill grow at item base open
     if (!m_CastItem && skillId != SKILL_NONE)
@@ -5060,7 +5069,7 @@ void Spell::EffectSummonType(SpellEffectIndex eff_idx)
 
 void Spell::DoSummonGroupPets(SpellEffectIndex eff_idx)
 {
-    if (!m_caster->GetPetGuid().IsEmpty())
+    if (m_caster->GetPetGuid())
         return;
 
     if (!unitTarget)
@@ -8067,7 +8076,7 @@ void Spell::EffectScriptEffect(SpellEffectIndex eff_idx)
                     for(Unit::SpellAuraHolderMap::const_iterator itr = auras.begin(); itr!=auras.end(); ++itr)
                     {
                         if (itr->second->GetSpellProto()->Dispel == DISPEL_DISEASE &&
-                            itr->second->GetCasterGuid() == m_caster->GetGUID())
+                            itr->second->GetCasterGuid() == m_caster->GetObjectGuid())
                         if (Aura* aura =itr->second->GetAuraByEffectIndex(EFFECT_INDEX_0))
                         {
                             uint32 countMin = aura->GetAuraMaxDuration();
@@ -9152,9 +9161,7 @@ void Spell::EffectSummonObject(SpellEffectIndex eff_idx)
         default: return;
     }
 
-    ObjectGuid guid = m_caster->m_ObjectSlotGuid[slot];
-
-    if (!guid.IsEmpty())
+    if (ObjectGuid guid = m_caster->m_ObjectSlotGuid[slot])
     {
         if (GameObject* obj = m_caster ? m_caster->GetMap()->GetGameObject(guid) : NULL)
             obj->SetLootState(GO_JUST_DEACTIVATED);

@@ -315,8 +315,7 @@ void WorldSession::HandleGroupUninviteOpcode(WorldPacket & recv_data)
     if (!grp)
         return;
 
-    ObjectGuid guid = grp->GetMemberGuid(membername);
-    if (!guid.IsEmpty())
+    if (ObjectGuid guid = grp->GetMemberGuid(membername))
     {
         if (grp->isLFDGroup())
             sLFGMgr.InitBoot(GetPlayer(), guid, "");
@@ -560,8 +559,7 @@ void WorldSession::HandleGroupChangeSubGroupOpcode( WorldPacket & recv_data )
         group->ChangeMembersGroup(player, groupNr);
     else
     {
-        ObjectGuid guid = sObjectMgr.GetPlayerGuidByName(name.c_str());
-        if (!guid.IsEmpty())
+        if (ObjectGuid guid = sObjectMgr.GetPlayerGuidByName(name.c_str()))
             group->ChangeMembersGroup(guid, groupNr);
     }
 }
