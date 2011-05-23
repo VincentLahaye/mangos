@@ -554,7 +554,7 @@ void Guild::BroadcastToGuild(WorldSession *session, const std::string& msg, uint
     if (session && session->GetPlayer() && HasRankRight(session->GetPlayer()->GetRank(),GR_RIGHT_GCHATSPEAK))
     {
         WorldPacket data;
-        ChatHandler(session).FillMessageData(&data, CHAT_MSG_GUILD, language, 0, msg.c_str());
+        ChatHandler::FillMessageData(&data, session, CHAT_MSG_GUILD, language, msg.c_str());
 
         for (MemberList::const_iterator itr = members.begin(); itr != members.end(); ++itr)
         {
@@ -573,7 +573,7 @@ void Guild::BroadcastToOfficers(WorldSession *session, const std::string& msg, u
         for(MemberList::const_iterator itr = members.begin(); itr != members.end(); ++itr)
         {
             WorldPacket data;
-            ChatHandler::FillMessageData(&data, session, CHAT_MSG_OFFICER, language, NULL, 0, msg.c_str(), NULL);
+            ChatHandler::FillMessageData(&data, session, CHAT_MSG_OFFICER, language, msg.c_str());
 
             Player *pl = ObjectAccessor::FindPlayer(ObjectGuid(HIGHGUID_PLAYER, itr->first));
 
@@ -2335,7 +2335,7 @@ void Guild::BroadcastEvent(GuildEvents event, ObjectGuid guid, char const* str1 
 {
     uint8 strCount = !str1 ? 0 : (!str2 ? 1 : (!str3 ? 2 : 3));
 
-    WorldPacket data(SMSG_GUILD_EVENT, 1 + 1 + 1*strCount + (guid.IsEmpty() ? 0 : 8));
+    WorldPacket data(SMSG_GUILD_EVENT, 1 + 1 + 1*strCount + (!guid ? 0 : 8));
     data << uint8(event);
     data << uint8(strCount);
 
@@ -2353,8 +2353,8 @@ void Guild::BroadcastEvent(GuildEvents event, ObjectGuid guid, char const* str1 
     else if (str1)
         data << str1;
 
-    if (!guid.IsEmpty())
-        data << guid;
+    if (guid)
+        data << ObjectGuid(guid);
 
     BroadcastPacket(&data);
 
