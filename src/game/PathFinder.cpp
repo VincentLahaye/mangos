@@ -206,8 +206,12 @@ void PathInfo::BuildPolyPath(PathNode startPos, PathNode endPos)
     {
         DEBUG_FILTER_LOG(LOG_FILTER_PATHFINDING, "++ BuildPolyPath :: (startPoly == 0 || endPoly == 0)\n");
         BuildShortcut();
-        m_type = ((m_sourceUnit->GetTypeId() == TYPEID_UNIT && ((Creature*)m_sourceUnit)->CanFly()) ||
-                (m_sourceUnit->GetTypeId() == TYPEID_PLAYER && ((Player*)m_sourceUnit)->IsBot() && ((Player*)m_sourceUnit)->IsFreeFlying()))
+
+		Creature* creature = (Creature*)m_sourceUnit;
+		Player* player = (Player*)m_sourceUnit;
+
+        m_type = ((m_sourceUnit->GetTypeId() == TYPEID_UNIT && creature->CanFly()) ||
+                 (m_sourceUnit->GetTypeId() == TYPEID_PLAYER && player->IsBot() && player->IsFreeFlying()))
                     ? PathType(PATHFIND_NORMAL | PATHFIND_NOT_USING_PATH) : PATHFIND_NOPATH;
         return;
     }
