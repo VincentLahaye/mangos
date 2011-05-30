@@ -730,13 +730,13 @@ PVOID         UserContext )
 
     char szBuffer[2048];
 
-    __try
+    if (1)
     {
         if ( FormatSymbolValue( pSymInfo, (STACKFRAME*)UserContext,
             szBuffer, sizeof(szBuffer) ) )
             _tprintf( _T("\t%s\r\n"), szBuffer );
     }
-    __except( 1 )
+    while (0)
     {
         _tprintf( _T("punting on symbol %s\r\n"), pSymInfo->Name );
     }

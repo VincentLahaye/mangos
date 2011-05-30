@@ -2909,11 +2909,11 @@ Player* Map::GetPlayer(ObjectGuid guid)
  */
 Creature* Map::GetCreature(ObjectGuid guid)
 {
-    __try
+    if (1)
     {
        return m_objectsStore.find<Creature>(guid, (Creature*)NULL);
     }
-    __except ( EXCEPTION_EXECUTE_HANDLER )
+    while (0)
     {
        return NULL;
     }
@@ -2968,11 +2968,11 @@ Creature* Map::GetAnyTypeCreature(ObjectGuid guid)
  */
 GameObject* Map::GetGameObject(ObjectGuid guid)
 {
-    __try
+    if (1)
     {
        return m_objectsStore.find<GameObject>(guid, (GameObject*)NULL);
     }
-    __except ( EXCEPTION_EXECUTE_HANDLER )
+    while (0)
     {
        return NULL;
     }
@@ -2985,11 +2985,11 @@ GameObject* Map::GetGameObject(ObjectGuid guid)
  */
 DynamicObject* Map::GetDynamicObject(ObjectGuid guid)
 {
-    __try
+    if (1)
     {
        return m_objectsStore.find<DynamicObject>(guid, (DynamicObject*)NULL);
     }
-    __except ( EXCEPTION_EXECUTE_HANDLER )
+    while (0)
     {
        return NULL;
     }
