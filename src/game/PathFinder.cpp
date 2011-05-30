@@ -21,6 +21,7 @@
 #include "Creature.h"
 #include "PathFinder.h"
 #include "Log.h"
+#include "Player.h"
 
 #include "../recastnavigation/Detour/Include/DetourCommon.h"
 
