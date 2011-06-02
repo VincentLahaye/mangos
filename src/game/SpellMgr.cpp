@@ -663,6 +663,12 @@ bool IsPositiveEffect(SpellEntry const *spellproto, SpellEffectIndex effIndex)
     if (!spellproto)
         return false;
 
+    // explicit targeting set positiveness independent from real effect
+    // Note: IsExplicitNegativeTarget can't be used symmetric (look some TARGET_SINGLE_ENEMY spells for example)
+    if (IsExplicitPositiveTarget(spellproto->EffectImplicitTargetA[effIndex]) ||
+        IsExplicitPositiveTarget(spellproto->EffectImplicitTargetB[effIndex]))
+        return true;
+
     switch(spellproto->Id)
     {
         case 72219:                                         // Gastric Bloat 10 N
@@ -781,7 +787,8 @@ bool IsPositiveEffect(SpellEntry const *spellproto, SpellEffectIndex effIndex)
                             {
                                 // if non-positive trigger cast targeted to positive target this main cast is non-positive
                                 // this will place this spell auras as debuffs
-                                if (IsPositiveTarget(spellTriggeredProto->EffectImplicitTargetA[i], spellTriggeredProto->EffectImplicitTargetB[i]) &&
+                                if (spellTriggeredProto->Effect[i] &&
+                                    IsPositiveTarget(spellTriggeredProto->EffectImplicitTargetA[i], spellTriggeredProto->EffectImplicitTargetB[i]) &&
                                     !IsPositiveEffect(spellTriggeredProto, SpellEffectIndex(i)))
                                     return false;
                             }
@@ -1982,6 +1989,11 @@ bool SpellMgr::IsNoStackSpellDueToSpell(uint32 spellId_1, uint32 spellId_2) cons
                         (spellInfo_2->Id == 8326 && spellInfo_1->Id == 20584))
                          return false;
 
+                    // Aura of Despair auras
+                    if ((spellInfo_1->Id == 64848 && spellInfo_2->Id == 62692) ||
+                        (spellInfo_2->Id == 64848 && spellInfo_1->Id == 62692))
+                        return false;
+
                     // Blood Fury and Rage of the Unraveller
                     if (spellInfo_1->SpellIconID == 1662 && spellInfo_2->SpellIconID == 1662)
                         return false;
@@ -2556,6 +2568,42 @@ bool SpellMgr::IsPrimaryProfessionSpell(uint32 spellId)
 
     return IsPrimaryProfessionSkill(skill);
 }
+
+uint32 SpellMgr::GetProfessionSpellMinLevel(uint32 spellId)
+{
+    uint32 s2l[8][3] =
+    {   // 0 - gather 1 - non-gather 2 - fish
+        /*0*/ { 0,   5,  5 },
+        /*1*/ { 0,   5,  5 },
+        /*2*/ { 0,  10, 10 },
+        /*3*/ { 10, 20, 10 },
+        /*4*/ { 25, 35, 10 },
+        /*5*/ { 40, 50, 10 },
+        /*6*/ { 55, 65, 10 },
+        /*7*/ { 75, 75, 10 },
+    };
+
+    uint32 rank = GetSpellRank(spellId);
+    if (rank >= 8)
+        return 0;
+
+    SkillLineAbilityMapBounds bounds = GetSkillLineAbilityMapBounds(spellId);
+    if (bounds.first == bounds.second)
+        return 0;
+
+    switch (bounds.first->second->skillId)
+    {
+        case SKILL_FISHING:
+            return s2l[rank][2];
+        case SKILL_HERBALISM:
+        case SKILL_MINING:
+        case SKILL_SKINNING:
+            return s2l[rank][0];
+        default:
+            return s2l[rank][1];
+    }
+}
+
 
 bool SpellMgr::IsPrimaryProfessionFirstRankSpell(uint32 spellId) const
 {
@@ -3262,6 +3310,8 @@ void SpellMgr::LoadSpellScriptTarget()
                 spellProto->EffectImplicitTargetB[i] == TARGET_AREAEFFECT_INSTANT ||
                 spellProto->EffectImplicitTargetA[i] == TARGET_AREAEFFECT_CUSTOM ||
                 spellProto->EffectImplicitTargetB[i] == TARGET_AREAEFFECT_CUSTOM ||
+                spellProto->EffectImplicitTargetA[i] == TARGET_OBJECT_AREA_SRC ||
+                spellProto->EffectImplicitTargetB[i] == TARGET_OBJECT_AREA_SRC ||
                 spellProto->EffectImplicitTargetA[i] == TARGET_AREAEFFECT_GO_AROUND_DEST ||
                 spellProto->EffectImplicitTargetB[i] == TARGET_AREAEFFECT_GO_AROUND_DEST)
             {
@@ -4095,6 +4145,33 @@ void SpellMgr::LoadSkillLineAbilityMap()
 
     sLog.outString();
     sLog.outString(">> Loaded %u SkillLineAbility MultiMap Data", count);
+}
+
+void SpellMgr::LoadSkillRaceClassInfoMap()
+{
+    mSkillRaceClassInfoMap.clear();
+
+    barGoLink bar( (int)sSkillRaceClassInfoStore.GetNumRows() );
+    uint32 count = 0;
+
+    for (uint32 i = 0; i < sSkillRaceClassInfoStore.GetNumRows(); ++i)
+    {
+        bar.step();
+        SkillRaceClassInfoEntry const *skillRCInfo = sSkillRaceClassInfoStore.LookupEntry(i);
+        if (!skillRCInfo)
+            continue;
+
+        // not all skills really listed in ability skills list
+        if (!sSkillLineStore.LookupEntry(skillRCInfo->skillId))
+            continue;
+
+        mSkillRaceClassInfoMap.insert(SkillRaceClassInfoMap::value_type(skillRCInfo->skillId,skillRCInfo));
+
+        ++count;
+    }
+
+    sLog.outString();
+    sLog.outString(">> Loaded %u SkillRaceClassInfo MultiMap Data", count);
 }
 
 void SpellMgr::CheckUsedSpells(char const* table)

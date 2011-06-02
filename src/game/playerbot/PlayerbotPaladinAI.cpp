@@ -113,7 +113,7 @@ bool PlayerbotPaladinAI::HealTarget(Unit *target)
     return false;
 } // end HealTarget
 
-void PlayerbotPaladinAI::DoNextCombatManeuver(Unit *pTarget)
+void PlayerbotPaladinAI::DoCombatManeuver(Unit *pTarget)
 {
     Unit* pVictim = pTarget->getVictim();
 
@@ -379,12 +379,7 @@ void PlayerbotPaladinAI::DoNonCombatActions()
         if (!g_member->isAlive())
         {
             if (ai->CastSpell(REDEMPTION, g_member))
-            {
-                std::string msg = "Resurrecting ";
-                msg += g_member->GetName();
-                m_bot->Say(msg, LANG_UNIVERSAL);
                 return;
-            }
         }
         else if (HealTarget(g_member))
             return;

@@ -231,10 +231,14 @@ public:
 
     uint32 GetAreaId(float x, float y, float z) const;
     uint32 GetZoneId(float x, float y, float z) const;
-    bool GetZoneAndAreaId(uint32& zoneid, uint32& areaid, float x, float y, float z) const;
+    void GetZoneAndAreaId(uint32& zoneid, uint32& areaid, float x, float y, float z) const;
 
     bool GetAreaInfo(float x, float y, float z, uint32 &mogpflags, int32 &adtId, int32 &rootId, int32 &groupId) const;
     bool IsOutdoors(float x, float y, float z) const;
+
+    bool IsNextZcoordOK(float x, float y, float oldZ, float maxDiff = 5.0f) const;
+    bool CheckPath(float srcX, float srcY, float srcZ, float& dstX, float& dstY, float& dstZ) const;
+    bool CheckPathAccurate(float srcX, float srcY, float srcZ, float& dstX, float& dstY, float& dstZ, Unit* mover = NULL ) const;
 
     //this method should be used only by TerrainManager
     //to cleanup unreferenced GridMap objects - they are too heavy

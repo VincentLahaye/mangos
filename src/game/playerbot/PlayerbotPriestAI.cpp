@@ -105,7 +105,7 @@ bool PlayerbotPriestAI::HealTarget(Unit* target)
         return false;
 } // end HealTarget
 
-void PlayerbotPriestAI::DoNextCombatManeuver(Unit *pTarget)
+void PlayerbotPriestAI::DoCombatManeuver(Unit *pTarget)
 {
     Unit* pVictim = pTarget->getVictim();
     PlayerbotAI* ai = GetAI();
@@ -190,12 +190,12 @@ void PlayerbotPriestAI::DoNextCombatManeuver(Unit *pTarget)
     case PriestShadow:
         ai->SetInFront(pTarget);
         static const uint32 SpellShadow[] = {SHADOW_WORD_PAIN, DEVOURING_PLAGUE, VAMPIRIC_TOUCH, MIND_BLAST};
-        static const uint32 elt = sizeof(SpellShadow)/sizeof(uint32); 
+        static const uint32 elt = sizeof(SpellShadow)/sizeof(uint32);
         char *SpellFirstTarget = "11110";
         char *SpellAllTargets = "10100";
         uint32 numberTargets = 0;
         uint32 numberTargetsWithin5f = 0;
-        
+
         // Count number of targets
         do
         {
@@ -265,7 +265,7 @@ void PlayerbotPriestAI::DoNextCombatManeuver(Unit *pTarget)
 
         break;
     }
-} // end DoNextCombatManeuver
+} // end DoCombatManeuver
 
 void PlayerbotPriestAI::DoNonCombatActions()
 {
@@ -314,7 +314,7 @@ void PlayerbotPriestAI::DoNonCombatActions()
     // selfbuff goes first
     if (ai->SelfBuff(INNER_FIRE))
         return;
-    
+
     // buff and heal master's group
     if (m_master->GetGroup())
     {
@@ -338,14 +338,7 @@ void PlayerbotPriestAI::DoNonCombatActions()
             // first rezz em
             if (!tPlayer->isAlive())
             {
-                if (ai->CastSpell(RESURRECTION, tPlayer))
-                {
-                    std::string msg = "Resurrecting ";
-                    msg += tPlayer->GetName();
-                    m_bot->Say(msg, LANG_UNIVERSAL);
-                    return;
-                }
-                else
+                if (!ai->CastSpell(RESURRECTION, tPlayer))
                     continue;
             }
             else

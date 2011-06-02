@@ -265,6 +265,8 @@ class MANGOS_DLL_SPEC WorldSession
         void SendListInventory(ObjectGuid guid);
         bool CheckBanker(ObjectGuid guid);
         void SendShowBank(ObjectGuid guid);
+        bool CheckMailBox(ObjectGuid guid);
+        void SendShowMailBox(ObjectGuid guid);
         void SendTabardVendorActivate(ObjectGuid guid);
         void SendSpiritResurrect();
         void SendBindPoint(Creature* npc);
@@ -709,7 +711,6 @@ class MANGOS_DLL_SPEC WorldSession
         void HandlePetAbandon( WorldPacket & recv_data );
         void HandlePetRename( WorldPacket & recv_data );
         void HandlePetCancelAuraOpcode( WorldPacket& recvPacket );
-        void HandlePetUnlearnOpcode( WorldPacket& recvPacket );
         void HandlePetSpellAutocastOpcode( WorldPacket& recvPacket );
         void HandlePetCastSpellOpcode( WorldPacket& recvPacket );
         void HandlePetLearnTalent( WorldPacket& recvPacket );
