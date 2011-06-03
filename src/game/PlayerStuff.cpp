@@ -1011,7 +1011,7 @@ bool Player::IsNotAllowedItem(ItemPrototype const* pProto)
 {
     if (pProto->InventoryType!=INVTYPE_BAG)
     {
-        if((pProto->RequiredLevel == 0) && (pProto->ItemLevel > 1))
+        if((pProto->RequiredLevel == 0) && (pProto->ItemLevel > 1) && (pProto->ItemLevel < 256))
             return false;
 
         if ((pProto->MaxCount > 0) && (uint32(pProto->MaxCount) <= GetItemCount(pProto->ItemId)))
