@@ -208,11 +208,8 @@ void PathInfo::BuildPolyPath(PathNode startPos, PathNode endPos)
         DEBUG_FILTER_LOG(LOG_FILTER_PATHFINDING, "++ BuildPolyPath :: (startPoly == 0 || endPoly == 0)\n");
         BuildShortcut();
 
-		Creature* creature = (Creature*)m_sourceUnit;
-		Player* player = (Player*)m_sourceUnit;
-
-        m_type = ((m_sourceUnit->GetTypeId() == TYPEID_UNIT && creature->CanFly()) ||
-                 (m_sourceUnit->GetTypeId() == TYPEID_PLAYER && player->IsBot() && player->IsFreeFlying()))
+        m_type = ((m_sourceUnit->GetTypeId() == TYPEID_UNIT && ((Creature*)m_sourceUnit)->CanFly()) ||
+                (m_sourceUnit->GetTypeId() == TYPEID_PLAYER && ((Player*)m_sourceUnit)->IsBot() && ((Player*)m_sourceUnit)->IsFlying()))
                     ? PathType(PATHFIND_NORMAL | PATHFIND_NOT_USING_PATH) : PATHFIND_NOPATH;
         return;
     }
@@ -250,7 +247,7 @@ void PathInfo::BuildPolyPath(PathNode startPos, PathNode endPos)
             if (!m_sourceUnit->GetTerrain()->IsUnderWater(p.x, p.y, p.z))
             {
                 DEBUG_FILTER_LOG(LOG_FILTER_PATHFINDING, "++ BuildPolyPath :: flying case\n");
-                if (owner->IsFreeFlying())
+                if (owner->IsFlying())
                     buildShotrcut = true;
             }
         }

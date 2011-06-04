@@ -140,6 +140,12 @@ void PlayerbotAI::ReinitAI()
     m_targetCombat = NULL;
     m_followTarget = m_bot;
 
+    if (m_bot->m_movementInfo.HasMovementFlag(MOVEFLAG_FLYING))
+        m_bot->m_movementInfo.RemoveMovementFlag(MOVEFLAG_FLYING);
+
+    if (m_bot->isDead())
+        m_bot->ResurrectPlayer(100.0f);
+
     if (m_bot == GetLeader())
     {
         m_bot->GiveLevel(m_bot->GetLevelAtLoading());
@@ -240,6 +246,7 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
             if (guid != m_bot->GetObjectGuid())
                 return;
             m_bot->m_movementInfo.AddMovementFlag(MOVEFLAG_FLYING);
+            SetFollowTarget(GetLeader(), true);
             return;
         }
 
@@ -250,6 +257,7 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
             if (guid != m_bot->GetObjectGuid())
                 return;
             m_bot->m_movementInfo.RemoveMovementFlag(MOVEFLAG_FLYING);
+            SetFollowTarget(GetLeader(), true);
             return;
         }
 
@@ -309,7 +317,7 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
                 }
 
                 m_bot->GetSession()->HandleGroupAcceptOpcode(p);
-                MovementClear();
+                m_bot->GetMotionMaster()->Clear(true);
                 if (!inviter->IsBot())
                 {
                     m_bot->SetDungeonDifficulty(inviter->GetDungeonDifficulty());
@@ -774,33 +782,27 @@ bool PlayerbotAI::IsInCombat()
     return false;
 }
 
-void PlayerbotAI::SetFollowTarget(Unit * followTarget)
+void PlayerbotAI::SetFollowTarget(Unit * followTarget, bool forced)
 {
     if (!followTarget)
     {
-        MovementClear();
+        m_bot->GetMotionMaster()->Clear(true);
         return;
     }
 
-    if (m_followTarget==followTarget)
+    if (followTarget->GetTypeId() == TYPEID_PLAYER)
+    {
+        Player* target = ((Player*)followTarget);
+        if (target->GetCorpse() && !FollowCheckTeleport(target->GetCorpse()))
+            return;
+        if (!FollowCheckTeleport(followTarget))
+            return;
+    }
+
+    if (!forced && m_followTarget==followTarget)
         return;
 
     m_followTarget = followTarget;
-
-    if (m_followTarget->GetTypeId() == TYPEID_PLAYER)
-    {
-        Player* target = ((Player*)m_followTarget);
-        if (target->IsBeingTeleported())
-            return;
-
-        if (target->GetCorpse())
-        {
-            if (!FollowCheckTeleport(target->GetCorpse()))
-                return;
-        }
-        else if (!FollowCheckTeleport(m_followTarget))
-            return;
-    }        
 
     if (m_bot == GetLeader())
     {
@@ -851,7 +853,6 @@ void PlayerbotAI::SetFollowTarget(Unit * followTarget)
                             SpellRangeEntry const *TempRange = GetSpellRangeStore()->LookupEntry(sp->m_spellInfo->rangeIndex);
                             if (!TempRange)
                             {
-                                m_followTarget = GetLeader();
                                 MoveTo(rand_float(M_PI_F/2.0f, 3.0f*M_PI_F/2.0f)); //RANGED
                             }
                             else
@@ -864,7 +865,6 @@ void PlayerbotAI::SetFollowTarget(Unit * followTarget)
                         }
                         else
                         {
-                            m_followTarget = GetLeader();
                             MoveTo(rand_float(M_PI_F/2.0f, 3.0f*M_PI_F/2.0f)); //RANGED
                         }
                     }
@@ -899,19 +899,20 @@ void PlayerbotAI::MoveTo(float angle, float minDist, float maxDist, float x, flo
                 if (max > 30.0f)
                     max = 30.0f;
 
-                MovementClear();
+                m_bot->GetMotionMaster()->Clear(true);
                 m_bot->GetMotionMaster()->MoveFollow(m_followTarget, rand_float(minDist, max), angle);
             }
             else
             {
-                if (GetCombatType()==BOTCOMBAT_CAC)
+                //TODO fix it... les bots cherchent à attaquer des cibles pacifiques :s
+                if (GetCombatType()==BOTCOMBAT_CAC && GetLeader()!=m_bot)
                 {
-                    MovementClear();
-                    m_bot->GetMotionMaster()->MoveChase(m_followTarget);//MoveFollow(m_followTarget, 1.0f, angle);
+                    m_bot->GetMotionMaster()->Clear(true);
+                    m_bot->GetMotionMaster()->MoveChase(m_followTarget);
                 }
                 else
                 {
-                    MovementClear();
+                    m_bot->GetMotionMaster()->Clear(true);
                     m_bot->GetMotionMaster()->MoveFollow(m_followTarget, rand_float(minDist, max), angle);
                 }
             }
@@ -920,7 +921,7 @@ void PlayerbotAI::MoveTo(float angle, float minDist, float maxDist, float x, flo
     }
     else
     {
-        MovementClear();
+        m_bot->GetMotionMaster()->Clear(true);
         m_bot->GetMotionMaster()->MovePoint(0, x, y, z);
     }
 }
@@ -1027,13 +1028,6 @@ Unit* PlayerbotAI::FindEnemy()
     return NULL;
 }
 
-void PlayerbotAI::MovementClear()
-{
-    m_bot->GetMotionMaster()->Clear(true);
-    m_bot->clearUnitState(UNIT_STAT_CHASE);
-    m_bot->clearUnitState(UNIT_STAT_FOLLOW);
-}
-
 bool PlayerbotAI::SetInFront(const Unit* obj)
 {
     if (m_bot->HasInArc((float)M_PI/16.0f, obj))
@@ -1057,20 +1051,24 @@ void PlayerbotAI::UpdateAI(const uint32 p_time)
         return;
     m_ignoreAIUpdatesUntilTime = currentTime + 1;
 
-
     if (!m_bot->IsInWorld() || !m_bot->GetMap())
-        return;
-
-    if (m_bot->GetTrader())
         return;
 
     if (!CheckTeleport())
         return;
 
-    if (!CheckMaster())
-        return;
+    if (m_bot==GetLeader())
+    {
+        if (m_bot->GetZoneId()==876)
+           return;
+    }
+    else
+    {
+        if (!CheckMaster())
+            return;
+    }
 
-    if (m_bot==GetLeader() && m_bot->GetZoneId()==876)
+    if (m_bot->GetTrader())
         return;
 
     CheckBG();
@@ -1165,9 +1163,9 @@ void PlayerbotAI::UpdateAI(const uint32 p_time)
     }
     else
     {
-        //Never remove it however bots are glued
-        if (!m_followTarget)
-            SetFollowTarget(GetLeader());
+        //Never remove it otherwise bots are glued
+        if (!m_followTarget || m_bot->GetMotionMaster()->GetCurrentMovementGeneratorType()==IDLE_MOTION_TYPE)
+            SetFollowTarget(GetLeader(), true);
 
         Spell* const pSpell = GetCurrentSpell();
         if (pSpell && !(pSpell->IsChannelActive() || pSpell->IsAutoRepeat()))
@@ -1178,10 +1176,11 @@ void PlayerbotAI::UpdateAI(const uint32 p_time)
             if (m_targetCombat)
             {
                 m_targetCombat = NULL;
-                SetFollowTarget(GetLeader());
+                SetFollowTarget(GetLeader(), true);
                 m_bot->AttackStop();
                 m_bot->SetSelectionGuid(ObjectGuid());
-                m_bot->InterruptNonMeleeSpells(true);
+                for (uint8 i = 0; i < CURRENT_MAX_SPELL; ++i)
+                    m_bot->InterruptSpell(CurrentSpellTypes(i), true, false);
             }
 
             if (GetLeader()!=m_bot)
@@ -1199,7 +1198,7 @@ void PlayerbotAI::UpdateAI(const uint32 p_time)
                 if (FindPOI())
                 {
                     m_ignoreAIUpdatesUntilTime = time(0) + urand(5, 10);
-                    MovementClear();
+                    m_bot->GetMotionMaster()->Clear(true);
                     MoveTo(rand_float(0, M_PI_F), 1.0f, 3.0f, orig_x, orig_y, orig_z);
                 }
                 else
@@ -1449,12 +1448,8 @@ bool PlayerbotAI::FollowCheckTeleport(WorldObject *obj)
     if (!m_bot->IsWithinDistInMap(obj, 100, true) && GetLeader()->isAlive() && !GetLeader()->IsTaxiFlying())
     {
         m_targetCombat = NULL;
-        m_followTarget = NULL;
 
         if (m_bot == GetLeader())
-            return false;
-
-        if (m_bot->IsBeingTeleported())
             return false;
 
         Map* pMap = GetLeader()->GetMap();

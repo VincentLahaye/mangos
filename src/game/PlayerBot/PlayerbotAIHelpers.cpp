@@ -1024,28 +1024,25 @@ bool PlayerbotAI::CheckTeleport()
 
 bool PlayerbotAI::CheckMaster()
 {
-    if (m_bot != GetLeader())
+    if (!GetLeader() || !GetLeader()->IsInWorld())
     {
-        if (!GetLeader() || !GetLeader()->IsInWorld())
-        {
-            SetLeader(m_bot);
-            ReinitAI();
-            return false;
-        }
+        SetLeader(m_bot);
+        ReinitAI();
+        return false;
+    }
 
-        if (!m_bot->GetGroup())
-        {
-            SetLeader(m_bot);
-            ReinitAI();
-            return false;
-        }
+    if (!m_bot->GetGroup())
+    {
+        SetLeader(m_bot);
+        ReinitAI();
+        return false;
+    }
 
-        if (!GetLeader()->GetGroup() && !GetLeader()->GetOriginalGroup())
-        {
-            SetLeader(m_bot);
-            ReinitAI();
-            return false;
-        }
+    if (!GetLeader()->GetGroup() && !GetLeader()->GetOriginalGroup())
+    {
+        SetLeader(m_bot);
+        ReinitAI();
+        return false;
     }
     return true;
 }
@@ -1153,7 +1150,7 @@ bool PlayerbotAI::CastSpell(uint32 spellId)
 
     SpellCastTimesEntry const * castTimeEntry = sSpellCastTimesStore.LookupEntry(pSpellInfo->CastingTimeIndex);
     if (castTimeEntry && castTimeEntry->CastTime)
-        MovementClear();
+        m_bot->GetMotionMaster()->Clear(true);
 
     m_bot->CastSpell(pTarget, pSpellInfo, false);
 
@@ -1722,6 +1719,3 @@ void PlayerbotAI::Pull()
         GetClassAI()->DoCombatManeuver(m_targetCombat);
     }
 }
-
-
-

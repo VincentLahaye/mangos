@@ -131,7 +131,13 @@ void TargetedMovementGeneratorMedium<T,D>::_setTargetLocation(T &owner)
 
         // calculate travel time, set spline, then send path
         uint32 traveltime = uint32(dist / (traveller.Speed()*0.001f));
-        SplineFlags flags = (owner.GetTypeId() == TYPEID_UNIT) ? ((Creature*)&owner)->GetSplineFlags() : SPLINEFLAG_WALKMODE;
+        SplineFlags flags = SPLINEFLAG_NONE;
+        if (owner.GetTypeId() == TYPEID_UNIT)
+            flags = ((Creature*)&owner)->GetSplineFlags();
+        else if (((Player*)&owner)->IsBot() && ((Player*)&owner)->IsFlying())
+            flags = SPLINEFLAG_FLYING;
+        else
+            flags = SPLINEFLAG_WALKMODE;
         owner.SendMonsterMoveByPath(pointPath, 1, endIndex, flags, traveltime);
     }
 
@@ -236,7 +242,7 @@ bool TargetedMovementGeneratorMedium<T,D>::Update(T &owner, const uint32 & time_
                 // handle the difference in elevation when the creature is flying
                 if (owner.GetTypeId() == TYPEID_UNIT && ((Creature*)&owner)->CanFly())
                     targetMoved = i_target->GetDistanceSqr(end_point.x, end_point.y, end_point.z) > dist*dist;
-                else if (owner.GetTypeId() == TYPEID_PLAYER && ((Player*)&owner)->IsBot() && ((Player*)&owner)->IsFreeFlying())
+                else if (owner.GetTypeId() == TYPEID_PLAYER && ((Player*)&owner)->IsBot() && ((Player*)&owner)->IsFlying())
                     targetMoved = i_target->GetDistanceSqr(end_point.x, end_point.y, end_point.z) > dist*dist;
                 else
                     targetMoved = i_target->GetDistance2d(end_point.x, end_point.y) > dist;
