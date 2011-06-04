@@ -48,6 +48,9 @@ void Player::GiveMeBestItemForMyLevel()
         if (pProto->ItemSet > 0 && !OtherItemsInSetAreAllowedForMe(pProto))
             continue;
 
+		if((pProto->ItemLevel < 256))
+			continue;
+
         switch( pProto->InventoryType )
         {
             case INVTYPE_HEAD:
