@@ -376,20 +376,83 @@ GmLogPerAccount = 0
 RaLogFile = ""
 LogColors = ""
 
-# Chat log parameters
+###################################################################################################################
+#   LEXICS CUTTER SYSTEM
+#
+#    Chat log parameters
+#        ChatLogEnable = 0
+#
+#    If this is enabled, all $d in file names are replaced with current date
+#    This does include innormative lexics log
+#        ChatLogDateSplit = 1
+#    If this is enabled, UTF8 header is written into new files
+#        ChatLogUTFHeader = 1
+#    If this is enabled, chat log will ignore messages with unprintable chars
+#        ChatLogIgnoreUnprintable = 1
+#
+#    Chat log files
+#        ChatLogChatFile = main_chat-$d.log
+#        ChatLogPartyFile = party_chat-$d.log
+#        ChatLogGuildFile = guild_chat-$d.log
+#        ChatLogWhisperFile = whisper_chat-$d.log
+#        ChatLogChannelFile = channel_chat-$d.log
+#        ChatLogRaidFile = raid_chat-$d.log
+#        ChatLogBattleGroundFile = bg_chat-$d.log
+#
+#    Chat log screen logging
+#        ChatLogChatScreen = 0
+#        ChatLogPartyScreen = 0
+#        ChatLogGuildScreen = 0
+#        ChatLogWhisperScreen = 0
+#        ChatLogChannelScreen = 0
+#        ChatLogRaidScreen = 0
+#        ChatLogBattleGroundScreen = 0
+#
+#    Lexics cutter parameters
+#        LexicsCutterEnable = 1
+#        LexicsCutterInnormativeCut = 1
+#        LexicsCutterCutReplacement = &!@^%!^&*!!!
+#        LexicsCutterLogFile = innormative-$d.log
+#        LexicsCutterScreenLog = 0
+#        LexicsCutterAnalogsFile = letter_analogs.txt
+#        LexicsCutterWordsFile = innormative_words.txt
+#
+#    Where to cut lexics
+#        LexicsCutInChat = 1
+#        LexicsCutInParty = 1
+#        LexicsCutInGuild = 1
+#        LexicsCutInWhisper = 1
+#        LexicsCutInChannel = 1
+#        LexicsCutInRaid = 1
+#        LexicsCutInBattleGround = 1
+#
+#    Ignore word spaces like: W O R D
+#        LexicsCutterIgnoreSpaces = 1
+#
+#    Ignore repeats like: WWOOOORRRRRD
+#        LexicsCutterIgnoreRepeats = 1
+#
+#    Action:
+#    ---   0: log only
+#    ---   1: sheep
+#    ---   2: stun
+#    ---   3: kill
+#    ---   4: leave 5 health
+#    ---   5: disable chat
+#    ---   6: stuck (works as stun + 50% health)
+#    ---   7: resurrection sickness
+#    ---   8: shear
+#        LexicsCutterAction = 0
+#        LexicsCutterActionDuration = 60000
+#
+#     Do not perform action on GM if this is enabled
+#        LexicsCutterNoActionOnGM = 1
+###################################################################################################################
+
 ChatLogEnable = 0
-
-# If this is enabled, all $d in file names are replaced with current date
-# This does include innormative lexics log
 ChatLogDateSplit = 1
-
-# If this is enabled, UTF8 header is written into new files
 ChatLogUTFHeader = 1
-
-# If this is enabled, chat log will ignore messages with unprintable chars
 ChatLogIgnoreUnprintable = 1
-
-# Chat log files
 ChatLogChatFile = main_chat-$d.log
 ChatLogPartyFile = party_chat-$d.log
 ChatLogGuildFile = guild_chat-$d.log
@@ -397,8 +460,6 @@ ChatLogWhisperFile = whisper_chat-$d.log
 ChatLogChannelFile = channel_chat-$d.log
 ChatLogRaidFile = raid_chat-$d.log
 ChatLogBattleGroundFile = bg_chat-$d.log
-
-# Chat log screen logging
 ChatLogChatScreen = 0
 ChatLogPartyScreen = 0
 ChatLogGuildScreen = 0
@@ -406,18 +467,13 @@ ChatLogWhisperScreen = 0
 ChatLogChannelScreen = 0
 ChatLogRaidScreen = 0
 ChatLogBattleGroundScreen = 0
-
-# Lexics cutter parameters
 LexicsCutterEnable = 1
-
 LexicsCutterInnormativeCut = 1
 LexicsCutterCutReplacement = &!@^%!^&*!!!
 LexicsCutterLogFile = innormative-$d.log
 LexicsCutterScreenLog = 0
 LexicsCutterAnalogsFile = letter_analogs.txt
 LexicsCutterWordsFile = innormative_words.txt
-
-# Where to cut lexics
 LexicsCutInChat = 1
 LexicsCutInParty = 1
 LexicsCutInGuild = 1
@@ -425,27 +481,10 @@ LexicsCutInWhisper = 1
 LexicsCutInChannel = 1
 LexicsCutInRaid = 1
 LexicsCutInBattleGround = 1
-
-# Ignore word spaces like: W O R D
 LexicsCutterIgnoreSpaces = 1
-
-# Ignore repeats like: WWOOOORRRRRD
 LexicsCutterIgnoreRepeats = 1
-
-# --- Action:
-# ---   0: log only
-# ---   1: sheep
-# ---   2: stun
-# ---   3: kill
-# ---   4: leave 5 health
-# ---   5: disable chat
-# ---   6: stuck (works as stun + 50% health)
-# ---   7: resurrection sickness
-# ---   8: shear
 LexicsCutterAction = 0
 LexicsCutterActionDuration = 60000
-
-# Do not perform action on GM if this is enabled
 LexicsCutterNoActionOnGM = 1
 
 ###################################################################################################################
@@ -609,6 +648,11 @@ LexicsCutterNoActionOnGM = 1
 #    StartHonorPoints
 #        Amount of honor that new players will start with
 #        Default: 0
+#
+#    AllowHonorKillsTitles
+#        Allow characters to get titles, depending of honor kills amount (something like old 1.xx honor system)
+#        Default: 0 - disallow
+#                 1 - allow
 #
 #    MaxArenaPoints
 #        Max arena points that player can have.
@@ -869,6 +913,7 @@ StartHeroicPlayerLevel = 55
 StartPlayerMoney = 0
 MaxHonorPoints = 75000
 StartHonorPoints = 0
+AllowHonorKillsTitles = 0
 MaxArenaPoints = 5000
 StartArenaPoints = 0
 InstantLogout = 1
@@ -1647,6 +1692,16 @@ BattleGround.Random.ResetHour = 6
 #        Default Personal Rating at team creation
 #        Default: -1 (use season dependent default value)
 #
+#    Arena.LoserNoChange
+#        If winner or loser rating is below this limit, loser loses no rating
+#        Default: 0 (disable)
+#                 1400
+#
+#    Arena.LoserHalfChange
+#        If loser rating is below this limit, he loses half of rating
+#        Default: 0 (disable)
+#                 1500
+#
 ###################################################################################################################
 
 Arena.MaxRatingDifference = 150
@@ -1660,6 +1715,8 @@ Arena.ArenaSeason.ID = 1
 Arena.ArenaSeasonPrevious.ID = 0
 Arena.StartRating = -1
 Arena.StartPersonalRating = -1
+Arena.LoserNoChange = 0
+Arena.LoserHalfChange = 0
 
 ###################################################################################################################
 # NETWORK CONFIG
@@ -1693,88 +1750,6 @@ Network.OutKBuff = -1
 Network.OutUBuff = 65536
 Network.TcpNodelay = 1
 Network.KickOnBadPacket = 0
-
-###################################################################################################################
-# AUCTION HOUSE BOT SETTINGS
-#
-#    AuctionHouseBot.EnableSeller
-#        Enable/Disable the part of AHBot that puts items up for auction
-#    Default 0 (disabled)
-#
-#    AuctionHouseBot.EnableBuyer
-#        Enable/Disable the part of AHBot that buys items from players
-#    Default 0 (disabled)
-#
-#    Auction House Bot character data
-#        AuctionHouseBot.Account is the account number (in realmd->account table) of the player you want to run as the auction bot.
-#       AuctionHouseBot.GUID is the GUID (in characters->characters table) of the player you want to run as the auction bot.
-#    Default: NONE (must be setted anywhere on true account and character!)
-#
-#    AuctionHouseBot.VendorItems
-#        Include items that can be bought from vendors.
-#    Default 0
-#
-#    AuctionHouseBot.LootItems
-#        Include items that can be looted or fished for.
-#    Default 1
-#
-#    AuctionHouseBot.OtherItems
-#        Include misc. items.
-#    Default 0
-#
-#    AuctionHouseBot.Bonding_types
-#        Indicates which bonding types to allow seller to put up for auction
-#            No_Bind
-#             Default 1
-#            Bind_When_Picked_Up
-#             Default 0
-#            Bind_When_Equipped
-#             Default 1
-#            Bind_When_Use
-#             Default 1
-#            Bind_Quest_Item
-#             Default 0
-# /dev/rsa modify: values of this (AuctionHouseBot.Bonding_types) is integer
-# 0 - disable this type item
-# (1 - 65535) - is koefficient to SellPrice for this type item
-#
-#    AuctionHouseBot.ItemsPerCycle
-#        Number of Items to Add/Remove from the AH during mass operations
-#    Default 200
-#
-#    AuctionHouseBot.UseBuyPriceForSeller
-#        Should the Seller use BuyPrice or SellPrice to determine Bid Prices
-#    Default 0 (use SellPrice)
-#
-#    AuctionHouseBot.MaxItemLevel
-#    /dev/rsa modify:  Maximum item level for auction bot sell
-#    Default 200
-#
-#    AuctionHouseBot.UseBuyPriceForBuyer
-#        Should the Buyer use BuyPrice or SellPrice to determine Bid Prices
-#    Default 0 (use SellPrice)
-#
-#    All other settings have been moved to sql
-#
-#
-###################################################################################################################
-
-AuctionHouseBot.EnableSeller = 0
-AuctionHouseBot.EnableBuyer = 0
-AuctionHouseBot.Account = (ACCOUNT NUMBER)
-AuctionHouseBot.GUID = (GUID)
-AuctionHouseBot.VendorItems = 0
-AuctionHouseBot.LootItems = 1
-AuctionHouseBot.OtherItems = 0
-AuctionHouseBot.No_Bind = 1
-AuctionHouseBot.Bind_When_Picked_Up = 0
-AuctionHouseBot.Bind_When_Equipped = 1
-AuctionHouseBot.Bind_When_Use = 1
-AuctionHouseBot.Bind_Quest_Item = 0
-AuctionHouseBot.ItemsPerCycle = 200
-AuctionHouseBot.UseBuyPriceForSeller = 0
-AuctionHouseBot.UseBuyPriceForBuyer = 0
-AuctionHouseBot.MaxItemLevel = 200
 
 ###################################################################################################################
 # CONSOLE, REMOTE ACCESS AND SOAP
