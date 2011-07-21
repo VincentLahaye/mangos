@@ -2455,13 +2455,7 @@ class MANGOS_DLL_SPEC Player : public Unit
         void SetPlayerbotMgr(PlayerbotMgr* mgr) { assert(!m_playerbotAI && !m_playerbotMgr); m_playerbotMgr=mgr; }
         PlayerbotMgr* GetPlayerbotMgr() { return m_playerbotMgr; }
         void SetBotDeathTimer() { m_deathTimer = 0; }
-		void SetLevelAtLoading(uint32 lvl) { m_levelAtLoading = lvl; }
-        uint32 GetLevelAtLoading() { return m_levelAtLoading; }
         bool IsBot() { return (GetSession()->IsBotSession()); }
-        uint16 getRole();
-        void setRole(uint16 role);
-        void setRewardTalentCount (uint32 talent) { m_questRewardTalentCount = talent; }
-        uint32 getRewardTalentCount() { return m_questRewardTalentCount; }
 
     protected:
 
