@@ -2611,39 +2611,6 @@ bool ChatHandler::HandleGMSpellUpdateCommand(char* args)
     return true;
 }
 
-bool ChatHandler::HandleGMChaosCommand(char* args)
-{
-    if(!*args)
-    {
-        if(m_session->GetPlayer()->GetChaosMode())
-            m_session->SendNotification("Chaos on");
-        else
-            m_session->SendNotification("Chaos off");
-        return true;
-    }
-
-    bool value;
-    if (!ExtractOnOff(&args, value))
-    {
-        SendSysMessage(LANG_USE_BOL);
-        SetSentErrorMessage(true);
-        return false;
-    }
-
-    if (value)
-    {
-        m_session->GetPlayer()->SetChaosMode(true);
-        m_session->SendNotification("Chaos on");
-    }
-    else
-    {
-        m_session->GetPlayer()->SetChaosMode(false);
-        m_session->SendNotification("Chaos off");
-    }
-
-    return true;
-}
-
 bool ChatHandler::HandleBotTank(char* args)
 {
     Player* pl = m_session->GetPlayer();
