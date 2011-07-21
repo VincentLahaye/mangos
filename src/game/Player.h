@@ -1306,6 +1306,23 @@ class MANGOS_DLL_SPEC Player : public Unit
         void AutoStoreLoot(uint32 loot_id, LootStore const& store, bool broadcast = false, uint8 bag = NULL_BAG, uint8 slot = NULL_SLOT);
         void AutoStoreLoot(Loot& loot, bool broadcast = false, uint8 bag = NULL_BAG, uint8 slot = NULL_SLOT);
 
+        /// Flying mounts everywhere mode
+        void FlyingMountsSpellsToItems();
+        bool CanUseFlyingMounts(SpellEntry const* spellInfo);
+        bool isFlyingSpell(SpellEntry const* spellInfo) const;
+        bool isRunningSpell(SpellEntry const* spellInfo) const;
+        bool isFlyingFormSpell(SpellEntry const* spellInfo) const;
+        bool isRunningFormSpell(SpellEntry const* spellInfo) const;
+        void RemoveFlyingSpells();
+        void RemoveFlyingFormSpells();
+        void RemoveRunningFormSpells();
+        void RemoveAllFlyingSpells();
+        bool HasAuraTypeFlyingSpell();
+        bool HasAuraTypeFlyingFormSpell();
+        bool HasAuraTypeRunningFormSpell();
+        bool GetFlyingMountTimer();
+        void SetFlyingMountTimer();
+
         Item* ConvertItem(Item* item, uint32 newItemId);
 
         InventoryResult _CanTakeMoreSimilarItems(uint32 entry, uint32 count, Item* pItem, uint32* no_space_count = NULL) const;
