@@ -60,6 +60,31 @@ struct GameTele
 
 typedef UNORDERED_MAP<uint32, GameTele > GameTeleMap;
 
+struct ShortItemSet
+{
+    uint32 ItemId;
+    uint32 ItemSet;
+    uint32 ItemLevel;
+    uint32 RequiredLevel;
+};
+
+typedef UNORDERED_MAP<uint32, ShortItemSet > ItemSetMap;
+
+struct SpellInfo
+{
+    uint32 id;
+    uint8 _class;
+    //std::string name_en;
+    std::string name_en2;
+    //std::string name_fr;
+    uint32 learn_level;
+    uint8 rank;
+    uint8 prev_rank;
+    uint8 next_rank;
+};
+
+typedef UNORDERED_MAP<uint32, SpellInfo > SpellInfoMap;
+
 struct SpellClickInfo
 {
     uint32 spellId;
@@ -797,6 +822,8 @@ class ObjectMgr
         void LoadPointOfInterestLocales();
         void LoadInstanceEncounters();
         void LoadInstanceTemplate();
+        void LoadBotInfoZone();
+        void LoadBotInfoPosition();
         void LoadWorldTemplate();
         void LoadMailLevelRewards();
 
@@ -1083,6 +1110,9 @@ class ObjectMgr
         bool AddGameTele(GameTele& data);
         bool DeleteGameTele(const std::string& name);
 
+        ItemSetMap const& GetItemSetMap() const { return m_ItemSetMap; }
+        SpellInfoMap const& GetSpellInfoMap() const { return m_SpellInfoMap; }
+
         uint32 GetNpcGossip(uint32 entry) const
         {
             CacheNpcTextIdMap::const_iterator iter = m_mCacheNpcTextIdMap.find(entry);
@@ -1269,6 +1299,8 @@ class ObjectMgr
         GraveYardMap        mGraveYardMap;
 
         GameTeleMap         m_GameTeleMap;
+        ItemSetMap          m_ItemSetMap;
+        SpellInfoMap        m_SpellInfoMap;
 
         SpellClickInfoMap   mSpellClickInfoMap;
 
