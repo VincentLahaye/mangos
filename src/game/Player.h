@@ -2694,6 +2694,7 @@ class MANGOS_DLL_SPEC Player : public Unit
 
         uint32 m_deathTimer;
         time_t m_deathExpireTime;
+        time_t m_flytimer;
 
         uint32 m_restTime;
 
