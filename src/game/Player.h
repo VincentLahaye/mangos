@@ -61,6 +61,9 @@ class Spell;
 class Item;
 struct AreaTrigger;
 
+#include "playerbot/PlayerbotMgr.h"
+#include "playerbot/PlayerbotAI.h"
+
 typedef std::deque<Mail*> PlayerMails;
 
 #define PLAYER_MAX_SKILLS           127
@@ -2471,7 +2474,12 @@ class MANGOS_DLL_SPEC Player : public Unit
         void SetPlayerbotMgr(PlayerbotMgr* mgr) { assert(!m_playerbotAI && !m_playerbotMgr); m_playerbotMgr=mgr; }
         PlayerbotMgr* GetPlayerbotMgr() { return m_playerbotMgr; }
         void SetBotDeathTimer() { m_deathTimer = 0; }
+        void SetLevelAtLoading(uint32 lvl) { m_levelAtLoading = lvl; }
+        uint32 GetLevelAtLoading() { return m_levelAtLoading; }
         bool IsBot() { return (GetSession()->IsBotSession()); }
+        uint16 getRole();
+        void setRole(uint16 role);
+
 
     protected:
 
