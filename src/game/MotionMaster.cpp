@@ -471,14 +471,14 @@ bool MotionMaster::GetDestination(float &x, float &y, float &z)
 
 Unit* MotionMaster::GetDestinationTarget()
 {
-    if (empty())
+    /*if (empty())
         return NULL;
 
     if (top()->GetMovementGeneratorType()!=FOLLOW_MOTION_TYPE)
         return NULL;
 
-    FollowMovementGenerator<Player> *mgen = static_cast<FollowMovementGenerator<Player>*>(top());
-    return mgen->GetDestinationTarget();
+    FollowMovementGenerator<Player> *mgen = static_cast<FollowMovementGenerator<Player>*>(top());*/
+    return NULL;
 }
 
 void MotionMaster::SetDestinationXYZ(float x, float y, float z)
@@ -486,7 +486,7 @@ void MotionMaster::SetDestinationXYZ(float x, float y, float z)
     if (empty())
         return;
 
-    if (m_owner->GetTypeId()!=TYPEID_PLAYER)
+    /*if (m_owner->GetTypeId()!=TYPEID_PLAYER)
         return;
 
     if (top()->GetMovementGeneratorType()!=FOLLOW_MOTION_TYPE)
@@ -494,14 +494,14 @@ void MotionMaster::SetDestinationXYZ(float x, float y, float z)
 
     Player* p_owner = (Player*)m_owner;
     FollowMovementGenerator<Player> *mgen = static_cast<FollowMovementGenerator<Player>*>(top());
-    mgen->SetDestinationXYZ(*p_owner, x, y, z);
+    mgen->SetDestinationXYZ(*p_owner, x, y, z);*/
 }
 
 void MotionMaster::SetDestinationTarget(Unit* target, float offset, float angle)
 {
     if (empty())
         return;
-
+/*
 
     if (m_owner->GetTypeId()!=TYPEID_PLAYER)
         return;
@@ -511,7 +511,7 @@ void MotionMaster::SetDestinationTarget(Unit* target, float offset, float angle)
 
     Player* p_owner = (Player*)m_owner;
     FollowMovementGenerator<Player> *mgen = static_cast<FollowMovementGenerator<Player>*>(top());
-    mgen->SetDestinationTarget(*p_owner, *target, offset, angle);
+    mgen->SetDestinationTarget(*p_owner, *target, offset, angle);*/
 }
 
 bool MotionMaster::HasArrived()
@@ -519,7 +519,7 @@ bool MotionMaster::HasArrived()
     if (empty())
         return true;
 
-    if (m_owner->GetTypeId()!=TYPEID_PLAYER)
+   /* if (m_owner->GetTypeId()!=TYPEID_PLAYER)
         return true;
 
     if (top()->GetMovementGeneratorType()!=FOLLOW_MOTION_TYPE)
