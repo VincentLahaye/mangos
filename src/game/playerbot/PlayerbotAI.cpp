@@ -330,7 +330,7 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
         case SMSG_ARENA_TEAM_INVITE:
         {
             //WorldPacket pk;
-            m_bot->GetSession()->HandleArenaTeamAcceptOpcode(pk);
+            //m_bot->GetSession()->HandleArenaTeamAcceptOpcode(pk);
             return;
         }
 
