@@ -146,12 +146,12 @@ void PlayerbotAI::ReinitAI()
             if (a_id==0)
                 continue;
 
-            ArenaTeam *at = sObjectMgr.GetArenaTeamById(a_id);
+            /*ArenaTeam *at = sObjectMgr.GetArenaTeamById(a_id);
             if (!at)
                 continue;
 
             if (at->DisbandNoSave(m_bot))
-                delete at;
+                delete at;*/
         }
         if (m_bot->GetGroup())
             m_bot->RemoveFromGroup();
@@ -329,7 +329,7 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
 
         case SMSG_ARENA_TEAM_INVITE:
         {
-            WorldPacket pk;
+            //WorldPacket pk;
             m_bot->GetSession()->HandleArenaTeamAcceptOpcode(pk);
             return;
         }
