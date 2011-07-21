@@ -990,6 +990,8 @@ void PlayerbotAI::SetFollowTarget(Unit * followTarget, bool forced)
 
 void PlayerbotAI::MoveTo(Unit* target, float angle, float minDist, float maxDist)
 {
+	return;
+	/*
     if (!target || !target->IsInWorld())
         return;
 
@@ -1002,13 +1004,13 @@ void PlayerbotAI::MoveTo(Unit* target, float angle, float minDist, float maxDist
         dist > MAX_DIST_POS_IN_GROUP ? MAX_DIST_POS_IN_GROUP : dist;
      }
      m_bot->GetMotionMaster()->SetDestinationTarget(target, dist == 0.0f ? minDist : rand_float(minDist, dist), angle);
-     SetInFront(target);
+     SetInFront(target);*/
 }
 
 void PlayerbotAI::MoveTo(float x, float y, float z)
 {
-    m_bot->UpdateGroundPositionZ(x,y,z);
-    m_bot->GetMotionMaster()->SetDestinationXYZ(x, y, z);
+    /*m_bot->UpdateGroundPositionZ(x,y,z);
+    m_bot->GetMotionMaster()->SetDestinationXYZ(x, y, z);*/
 }
 
 bool PlayerbotAI::HasArrived()
