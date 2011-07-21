@@ -658,6 +658,8 @@ class ObjectMgr
         }
 
         GossipText const* GetGossipText(uint32 Text_ID) const;
+		BotInfoZone const* GetBotInfoZone(uint32 zoneid) const;
+        BotInfoPosition const* GetBotInfoPosition(uint32 zoneid) const;
 
         WorldSafeLocsEntry const *GetClosestGraveYard(float x, float y, float z, uint32 MapId, Team team);
         bool AddGraveYardLink(uint32 id, uint32 zone, Team team, bool inDB = true);

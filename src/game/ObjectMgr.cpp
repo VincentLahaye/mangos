@@ -5002,6 +5002,31 @@ void ObjectMgr::LoadInstanceTemplate()
     sLog.outString();
 }
 
+BotInfoZone const *ObjectMgr::GetBotInfoZone(uint32 zoneid) const
+{
+    for (BotInfoZoneMap::const_iterator itr = mBotInfoZone.begin(); itr != mBotInfoZone.end(); ++itr)
+    {
+        if(itr->second.id == zoneid)
+            return &itr->second;
+    }
+    return NULL;
+}
+
+BotInfoPosition const *ObjectMgr::GetBotInfoPosition(uint32 zoneid) const
+{
+    std::vector<BotInfoPosition> valid_zone;
+    for (BotInfoPositionMap::const_iterator itr = mBotInfoPosition.begin(); itr != mBotInfoPosition.end(); ++itr)
+    {
+        if (zoneid == itr->second.zoneid)
+            valid_zone.push_back(itr->second);
+    }
+
+    if (valid_zone.empty())
+        return NULL;
+
+    return &valid_zone.at(urand(0, valid_zone.size()-1));
+}
+
 struct SQLWorldLoader : public SQLStorageLoaderBase<SQLWorldLoader>
 {
     template<class D>
