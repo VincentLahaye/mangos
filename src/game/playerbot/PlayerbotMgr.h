@@ -29,6 +29,8 @@ public:
     void HandleMasterIncomingPacket(const WorldPacket& packet);
     void HandleMasterOutgoingPacket(const WorldPacket& packet);
 
+	static void AddAllBots();
+
     void AddPlayerBot(ObjectGuid guid);
     void LogoutPlayerBot(ObjectGuid guid);
     Player* GetPlayerBot (ObjectGuid guid) const;

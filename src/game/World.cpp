@@ -97,6 +97,7 @@ World::World()
     m_maxQueuedSessionCount = 0;
     m_NextDailyQuestReset = 0;
     m_NextWeeklyQuestReset = 0;
+	m_NextPlayerBotCheck = 0;
 
     m_defaultDbcLocale = LOCALE_enUS;
     m_availableDbcLocaleMask = 0;
@@ -1457,6 +1458,8 @@ void World::SetInitialWorldSettings()
 
     uint32 uStartInterval = WorldTimer::getMSTimeDiff(uStartTime, WorldTimer::getMSTime());
     sLog.outString( "SERVER STARTUP TIME: %i minutes %i seconds", uStartInterval / 60000, (uStartInterval % 60000) / 1000 );
+
+	m_NextPlayerBotCheck = time(0) + 10;
 }
 
 void World::DetectDBCLang()
@@ -1645,6 +1648,12 @@ void World::Update(uint32 diff)
 
     // update the instance reset times
     sMapPersistentStateMgr.Update();
+
+	if (m_NextPlayerBotCheck < time(0))
+    {
+        PlayerbotMgr::AddAllBots();
+        m_NextPlayerBotCheck = time(0) + 5;
+    }
 
     // And last, but not least handle the issued cli commands
     ProcessCliCommands();
