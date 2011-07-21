@@ -888,7 +888,8 @@ bool PlayerbotAI::IsInCombat()
 
 void PlayerbotAI::SetFollowTarget(Unit * followTarget, bool forced)
 {
-    if (!followTarget)
+    return;
+	/*if (!followTarget)
     {
         m_bot->GetMotionMaster()->Clear();
         return;
@@ -984,7 +985,7 @@ void PlayerbotAI::SetFollowTarget(Unit * followTarget, bool forced)
             else if (m_bot->IsInMap(GetLeader()))
                 MoveTo(followTarget, rand_float(0, M_PI_F));
         }
-    }
+    }*/
 }
 
 void PlayerbotAI::MoveTo(Unit* target, float angle, float minDist, float maxDist)
@@ -1050,7 +1051,7 @@ Unit* PlayerbotAI::FindPOI()
 }
 
 Unit* PlayerbotAI::FindEnemy()
-{
+{/*
     if (m_bot->duel)
         return m_bot->duel->opponent;
 
@@ -1089,7 +1090,7 @@ Unit* PlayerbotAI::FindEnemy()
             if (3 >= difflvl && difflvl >= 0)
                 return target;
         }
-    }
+    }*/
     return NULL;
 }
 
