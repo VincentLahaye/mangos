@@ -2734,6 +2734,9 @@ class MANGOS_DLL_SPEC Player : public Unit
         /// class dependent melee diminishing constant for dodge/parry/missed chances
         static const float m_diminishing_k[MAX_CLASSES];
 
+        uint32 m_latest_spell;
+        bool m_has_level_up;
+
     private:
         void _HandleDeadlyPoison(Unit* Target, WeaponAttackType attType, SpellEntry const *spellInfo);
         // internal common parts for CanStore/StoreItem functions
