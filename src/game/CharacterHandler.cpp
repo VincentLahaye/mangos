@@ -601,6 +601,128 @@ void WorldSession::HandlePlayerLoginOpcode( WorldPacket & recv_data )
 
 void PlayerbotMgr::AddAllBots()
 {
+    if (!sWorld.getConfig(CONFIG_BOOL_BOTS_ENABLED))
+        return;
+
+    uint32 accountId = 1;
+    uint32 cycle = 0;
+    int nbBotsCurrAlliance = 0;
+    int nbBotsCurrHorde = 0;
+    HashMapHolder<Player>::MapType& m = sObjectAccessor.GetPlayers();
+    for(HashMapHolder<Player>::MapType::const_iterator itr = m.begin(); itr != m.end(); ++itr)
+    {
+        Player* bot = itr->second;
+        if (bot && bot->IsBot() && !bot->GetGroup() && !bot->GetSession()->isLogingOut())
+        {
+            if (bot->GetTeam() == ALLIANCE)
+                nbBotsCurrAlliance++;
+            else
+                nbBotsCurrHorde++;
+        }
+    }
+
+    int nbBotsWantedAlliance = 100 - nbBotsCurrAlliance;
+    int nbBotsWantedHorde = 100 - nbBotsCurrHorde;
+    if (nbBotsWantedAlliance == 0 && nbBotsCurrHorde == 0)
+        return;
+
+    else if (nbBotsWantedAlliance < 0 || nbBotsCurrHorde < 0)
+    {
+        for(HashMapHolder<Player>::MapType::const_iterator itr = m.begin(); itr != m.end() || nbBotsWantedAlliance < 0 || nbBotsCurrHorde < 0; ++itr)
+        {
+            Player* bot = itr->second;
+            if (bot && bot->IsBot() && !bot->GetGroup() && !bot->GetSession()->isLogingOut())
+            {
+                if (bot->GetTeam() == ALLIANCE && nbBotsWantedAlliance < 0)
+                {
+                    nbBotsWantedAlliance++;
+                    bot->GetSession()->LogoutPlayer(false);
+                    break;
+                }
+                else if (bot->GetTeam() == HORDE && nbBotsWantedHorde < 0)
+                {
+                    nbBotsWantedHorde++;
+                    bot->GetSession()->LogoutPlayer(false);
+                    break;
+                }
+            }
+        }
+    }
+    else
+    {
+
+        QueryResult *result = CharacterDatabase.PQuery("SELECT guid, race FROM characters WHERE account = '%u' ORDER BY RAND()", accountId);
+        if( result )
+        {
+            int itrAlliance = 0;
+            int itrHorde = 0;
+            do
+            {
+                Field *fields = result->Fetch();
+                uint64 guid = fields[0].GetUInt64();
+                uint8 race = fields[1].GetUInt8();
+
+                if (guid == 0)
+                    continue;
+
+                // has bot already been added?
+                if (sObjectMgr.GetPlayer(guid))
+                    continue;
+
+                switch (race)
+                {
+                    case RACE_HUMAN:
+                    case RACE_DWARF:
+                    case RACE_NIGHTELF:
+                    case RACE_GNOME:
+                    case RACE_DRAENEI:
+                    {
+                        if (itrAlliance < nbBotsWantedAlliance)
+                        {
+                            itrAlliance++;
+                            LoginQueryHolder *holder = new LoginQueryHolder(accountId, guid);
+                            if(!holder->Initialize())
+                            {
+                                delete holder; // delete all unprocessed queries
+                                continue;
+                            }
+                            CharacterDatabase.DelayQueryHolder(&chrHandler, &CharacterHandler::HandlePlayerBotLoginCallback, holder);
+                            cycle++;
+                        }
+                        break;
+                    }
+                    case RACE_ORC:
+                    case RACE_UNDEAD:
+                    case RACE_TAUREN:
+                    case RACE_TROLL:
+                    case RACE_BLOODELF:
+                    {
+                        if (itrHorde < nbBotsWantedHorde)
+                        {
+                            itrHorde++;
+                            LoginQueryHolder *holder = new LoginQueryHolder(accountId, guid);
+                            if(!holder->Initialize())
+                            {
+                                delete holder; // delete all unprocessed queries
+                                continue;
+                            }
+                            CharacterDatabase.DelayQueryHolder(&chrHandler, &CharacterHandler::HandlePlayerBotLoginCallback, holder);
+                            cycle++;
+                        }
+                        break;
+                    }
+                    default:
+                        break;
+                }
+            }
+            while (result->NextRow() && cycle < 6 && (itrAlliance < nbBotsWantedAlliance || itrHorde < nbBotsWantedHorde));
+            delete result;
+        }
+    }
+}
+
+/*void PlayerbotMgr::AddAllBots()
+{
 
     uint32 accountId = 1;
     uint32 cycle = 0;
@@ -914,7 +1036,7 @@ void PlayerbotMgr::AddAllBots()
             delete result;
         }
     }
-}
+}*/
 
 
 void WorldSession::HandlePlayerLogin(LoginQueryHolder *holder)
