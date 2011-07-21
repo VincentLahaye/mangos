@@ -599,27 +599,6 @@ void WorldSession::HandlePlayerLoginOpcode( WorldPacket & recv_data )
     CharacterDatabase.DelayQueryHolder(&chrHandler, &CharacterHandler::HandlePlayerLoginCallback, holder);
 }
 
-// Playerbot mod. Can't easily reuse HandlePlayerLoginOpcode for logging in bots because it assumes
-// a WorldSession exists for the bot. The WorldSession for a bot is created after the character is loaded.
-void PlayerbotMgr::AddPlayerBot(ObjectGuid playerGuid)
-{
-    // has bot already been added?
-    if (sObjectMgr.GetPlayer(playerGuid))
-        return;
-
-    uint32 accountId = sObjectMgr.GetPlayerAccountIdByGUID(playerGuid);
-    if (accountId == 0)
-        return;
-
-    LoginQueryHolder *holder = new LoginQueryHolder(accountId, playerGuid);
-    if(!holder->Initialize())
-    {
-        delete holder;                                      // delete all unprocessed queries
-        return;
-    }
-    CharacterDatabase.DelayQueryHolder(&chrHandler, &CharacterHandler::HandlePlayerBotLoginCallback, holder);
-}
-
 void PlayerbotMgr::AddAllBots()
 {
 
