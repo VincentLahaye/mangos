@@ -1,3 +1,21 @@
+/*
+ * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ */
+
 #ifndef _PLAYERBOTAI_H
 #define _PLAYERBOTAI_H
 
@@ -5,6 +23,7 @@
 #include "../QuestDef.h"
 #include "../GameEventMgr.h"
 #include "../ObjectGuid.h"
+#include "../BattleGround.h"
 
 class WorldPacket;
 class WorldObject;
@@ -14,8 +33,19 @@ class Object;
 class Item;
 class PlayerbotClassAI;
 class PlayerbotMgr;
+class BattleGround;
 
-#define BOTLOOT_DISTANCE 75.0f
+typedef std::map<ObjectGuid, BattleGroundPlayer> BattleGroundPlayerMap;
+
+#define MIN_HP_PERCENT_BEFORE_FLEEING  15.0f
+#define MAX_BOTLOOT_DISTANCE           25.0f
+#define MAX_DIST_POS_IN_GROUP          30.0f
+#define MAX_DIST_COMBAT_TARGET        100.0f
+#define MAX_DIST_BETWEEN_BOT_LEADER   MAX_DIST_COMBAT_TARGET + 50.0f
+#define MAX_DIST_COMBAT_RANGED_TARGET  25.0f
+#define MIN_DIST_COMBAT_CAC_TARGET      2.0f
+#define MAX_DIST_COMBAT_CAC_TARGET     20.0f
+#define MAX_RANGE_MOVEMENT            250.0f
 
 enum RacialTraits
 {
@@ -41,204 +71,80 @@ enum RacialTraits
     WILL_OF_THE_FORSAKEN_ALL       = 7744
 };
 
-enum ProfessionSpells
+enum BotCombatType
 {
-    ALCHEMY_1                      = 2259,
-    BLACKSMITHING_1                = 2018,
-    COOKING_1                      = 2550,
-    ENCHANTING_1                   = 7411,
-    ENGINEERING_1                  = 4036,
-    FIRST_AID_1                    = 3273,
-    FISHING_1                      = 7620,
-    HERB_GATHERING_1               = 2366,
-    INSCRIPTION_1                  = 45357,
-    JEWELCRAFTING_1                = 25229,
-    MINING_1                       = 2575,
-    SKINNING_1                     = 8613,
-    TAILORING_1                    = 3908
+    BOTCOMBAT_RANGED,
+    BOTCOMBAT_CAC
 };
 
-enum NotableItems
+enum CastCondition
 {
-    // Skeleton Keys
-    SILVER_SKELETON_KEY = 15869,
-    GOLDEN_SKELETON_KEY = 15870,
-    TRUESILVER_SKELETON_KEY = 15871,
-    ARCANITE_SKELETON_KEY = 15872,
-    TITANIUM_SKELETON_KEY = 43853,
-    COBALT_SKELETON_KEY = 43854,
-    // Lock Charges
-    SMALL_SEAFORIUM_CHARGE = 4367,
-    LARGE_SEAFORIUM_CHARGE = 4398,
-    POWERFUL_SEAFORIUM_CHARGE = 18594,
-    ELEMENTAL_SEAFORIUM_CHARGE = 23819
+    NO_CONDITION,
+
+    // Condition on Target
+    IF_TARGET_HAS_AURA,
+    IF_TARGET_HAS_NOT_AURA,
+
+    IF_TARGET_HAS_AURA_FROM_CURRENT_CASTER,
+    IF_TARGET_HAS_NOT_AURA_FROM_CURRENT_CASTER,
+
+    // Condition on Caster
+    IF_CASTER_HAS_AURA,
+    IF_CASTER_HAS_NOT_AURA,
+
+    IF_CASTER_HAS_AURA_FROM_CURRENT_CASTER,
+    IF_CASTER_HAS_NOT_AURA_FROM_CURRENT_CASTER
 };
 
 class MANGOS_DLL_SPEC PlayerbotAI
 {
 public:
-    enum ScenarioType
-    {
-        SCENARIO_PVEEASY,
-        SCENARIO_PVEHARD,
-        SCENARIO_DUEL,
-        SCENARIO_PVPEASY,
-        SCENARIO_PVPHARD
-    };
-
-    enum CombatStyle
-    {
-        COMBAT_MELEE                = 0x01,             // class melee attacker
-        COMBAT_RANGED               = 0x02              // class is ranged attacker
-    };
-
-    // masters orders that should be obeyed by the AI during the updteAI routine
-    // the master will auto set the target of the bot
-    enum CombatOrderType
-    {
-        ORDERS_NONE                 = 0x00,             // no special orders given
-        ORDERS_TANK                 = 0x01,             // bind attackers by gaining threat
-        ORDERS_ASSIST               = 0x02,             // assist someone (dps type)
-        ORDERS_HEAL                 = 0x04,             // concentrate on healing (no attacks, only self defense)
-        ORDERS_PROTECT              = 0x10,             // combinable state: check if protectee is attacked
-        ORDERS_PRIMARY              = 0x0F,
-        ORDERS_SECONDARY            = 0xF0,
-        ORDERS_RESET                = 0xFF
-    };
-
-    enum CombatTargetType
-    {
-        TARGET_NORMAL               = 0x00,
-        TARGET_THREATEN             = 0x01
-    };
-
     enum BotState
     {
-        BOTSTATE_NORMAL,            // normal AI routines are processed
-        BOTSTATE_COMBAT,            // bot is in combat
-        BOTSTATE_DEAD,              // we are dead and wait for becoming ghost
-        BOTSTATE_DEADRELEASED,      // we released as ghost and wait to revive
-        BOTSTATE_LOOTING            // looting mode, used just after combat
-    };
-
-    enum CollectionFlags
-    {
-        COLLECT_FLAG_NOTHING    = 0x00,     // skip looting of anything
-        COLLECT_FLAG_COMBAT     = 0x01,     // loot after combat
-        COLLECT_FLAG_QUEST      = 0x02,     // quest and needed items
-        COLLECT_FLAG_PROFESSION = 0x04,     // items related to skills
-        COLLECT_FLAG_LOOT       = 0x08,     // all loot on corpses
-        COLLECT_FLAG_SKIN       = 0x10,     // skin creatures if available
-        COLLECT_FLAG_NEAROBJECT = 0x20      // collect specified nearby object
-    };
-
-    enum MovementOrderType
-    {
-        MOVEMENT_NONE               = 0x00,
-        MOVEMENT_FOLLOW             = 0x01,
-        MOVEMENT_STAY               = 0x02
+        BOTSTATE_NORMAL,
+        BOTSTATE_COMBAT,
+        BOTSTATE_DEAD,
+        BOTSTATE_DEADRELEASED,
+        BOTSTATE_LOOTING,
+        BOTSTATE_FLYING
     };
 
     typedef std::map<uint32, uint32> BotNeedItem;
-    typedef std::list<ObjectGuid> BotLootCreature;
-    typedef std::list<uint32> BotLootEntry;
-    typedef std::list<uint32> BotSpellList;
-
-    // attacker query used in PlayerbotAI::FindAttacker()
-    enum ATTACKERINFOTYPE
-    {
-        AIT_NONE                    = 0x00,
-        AIT_LOWESTTHREAT            = 0x01,
-        AIT_HIGHESTTHREAT           = 0x02,
-        AIT_VICTIMSELF              = 0x04,
-        AIT_VICTIMNOTSELF           = 0x08      // !!! must use victim param in FindAttackers
-    };
-    struct AttackerInfo
-    {
-        Unit*    attacker;            // reference to the attacker
-        Unit*    victim;              // combatant's current victim
-        float threat;                 // own threat on this combatant
-        float threat2;                // highest threat not caused by bot
-        uint32 count;                 // number of units attacking
-        uint32 source;                // 1=bot, 2=master, 3=group
-    };
-    typedef std::map<ObjectGuid, AttackerInfo> AttackerInfoList;
+    typedef std::list<Unit*> BotVictimList;
     typedef std::map<uint32, float> SpellRanges;
+    typedef std::vector<uint32> BotTaxiNode;
 
 public:
     PlayerbotAI(PlayerbotMgr * const mgr, Player * const bot);
     virtual ~PlayerbotAI();
 
-    // This is called from Unit.cpp and is called every second (I think)
+    void ReinitAI();
+    void InitSpells(PlayerbotAI* const ai);
+
     void UpdateAI(const uint32 p_time);
 
-    // This is called from ChatHandler.cpp when there is an incoming message to the bot
-    // from a whisper or from the party channel
-    void HandleCommand(const std::string& text, Player& fromPlayer);
-
-    // This is called by WorldSession.cpp
-    // It provides a view of packets normally sent to the client.
-    // Since there is no client at the other end, the packets are dropped of course.
-    // For a list of opcodes that can be caught see Opcodes.cpp (SMSG_* opcodes only)
     void HandleBotOutgoingPacket(const WorldPacket& packet);
-
-    // This is called by WorldSession.cpp
-    // when it detects that a bot is being teleported. It acknowledges to the server to complete the
-    // teleportation
     void HandleTeleportAck();
 
-    // Returns what kind of situation we are in so the ai can react accordingly
-    ScenarioType GetScenarioType() { return m_ScenarioType; }
-
     PlayerbotClassAI* GetClassAI() { return m_classAI; }
-    PlayerbotMgr* const GetManager() { return m_mgr; }
 
-    // finds spell ID for matching substring args
-    // in priority of full text match, spells not taking reagents, and highest rank
     uint32 getSpellId(const char* args, bool master = false) const;
     uint32 getPetSpellId(const char* args) const;
-    // Initialize spell using rank 1 spell id
-    uint32 initSpell(uint32 spellId);
+    uint32 initSpell(uint32 spellId, bool ignorePossession = false);
     uint32 initPetSpell(uint32 spellIconId);
 
-    // extracts item ids from links
     void extractItemIds(const std::string& text, std::list<uint32>& itemIds) const;
-
-    // extract spellid from links
-    void extractSpellId(const std::string& text, uint32 &spellId) const;
-
-    // extract spellids from links to list
-    void extractSpellIdList(const std::string& text, BotSpellList& m_spellsToLearn) const;
-
-    // extracts currency from a string as #g#s#c and returns the total in copper
+    bool extractSpellId(const std::string& text, uint32 &spellId) const;
     uint32 extractMoney(const std::string& text) const;
+    bool extractGOinfo(const std::string& text, uint32 &guid,  uint32 &entry, int &mapid, float &x, float &y, float &z) const;
 
-    // extracts gameobject info from link
-    void extractGOinfo(const std::string& text, std::list<ObjectGuid>& m_lootTargets) const;
-
-    // finds items in bots equipment and adds them to foundItemList, removes found items from itemIdSearchList
     void findItemsInEquip(std::list<uint32>& itemIdSearchList, std::list<Item*>& foundItemList) const;
-    // finds items in bots inventory and adds them to foundItemList, removes found items from itemIdSearchList
     void findItemsInInv(std::list<uint32>& itemIdSearchList, std::list<Item*>& foundItemList) const;
-    // finds nearby game objects that are specified in m_collectObjects then adds them to the m_lootTargets list
-    void findNearbyGO();
-
-    void MakeSpellLink(const SpellEntry *sInfo, std::ostringstream &out, Player* player = NULL);
-
-    // currently bots only obey commands from the master
-    bool canObeyCommandFrom(const Player& player) const;
-
-    // get current casting spell (will return NULL if no spell!)
-    Spell* GetCurrentSpell() const;
-
-    bool HasAura(uint32 spellId, const Unit& player) const;
-    bool HasAura(const char* spellName, const Unit& player) const;
-    bool HasAura(const char* spellName) const;
 
     bool CanReceiveSpecificSpell(uint8 spec, Unit* target) const;
 
     bool PickPocket(Unit* pTarget);
-    bool HasTool(uint32 TC);
+    bool HasPick();
     bool HasSpellReagents(uint32 spellId);
 
     uint8 GetHealthPercent(const Unit& target) const;
@@ -260,21 +166,19 @@ public:
     Item* FindPoison() const;
     Item* FindMount(uint32 matchingRidingSkill) const;
     Item* FindItem(uint32 ItemId);
-    Item* FindKeyForLockValue(uint32 reqSkillValue);
-    Item* FindBombForLockValue(uint32 reqSkillValue);
     Item* FindConsumable(uint32 displayId) const;
 
-    // ******* Actions ****************************************
-    // Your handlers can call these actions to make the bot do things.
-    void TellMaster(const std::string& text) const;
-    void TellMaster(const char *fmt, ...) const;
-    void SendWhisper(const std::string& text, Player& player) const;
-    bool CastSpell(const char* args);
-    bool CastSpell(uint32 spellId);
-    bool CastSpell(uint32 spellId, Unit& target);
+    bool Cast(uint32 spellId, Unit *target = NULL, CastCondition condition = IF_TARGET_HAS_NOT_AURA, uint32 spellIdForSecondCondition = 0, CastCondition SecondCondition = NO_CONDITION);
+    bool CastAura(uint32 spellId, Unit* target);
+    bool CastSpell(uint32 spellId, Unit* target = NULL);
+    bool CastPetAura(uint32 spellId, Unit* target);
     bool CastPetSpell(uint32 spellId, Unit* target = NULL);
-    bool Buff(uint32 spellId, Unit * target, void (*beforeCast)(Player *) = NULL);
+    bool Buff(uint32 spellId, Unit* target);
     bool SelfBuff(uint32 spellId);
+    Spell* GetCurrentSpell() const;
+    bool HasAura(uint32 spellId, const Unit* unit) const;
+    bool HasAuraFromUnit(uint32 spellId, Unit *target, Unit *caster);
+    bool RespectCondition(uint32 spellId, Unit *target, CastCondition condition);
 
     void UseItem(Item *item, uint32 targetFlag, ObjectGuid targetGUID);
     void UseItem(Item *item, uint8 targetInventorySlot);
@@ -282,35 +186,34 @@ public:
     void UseItem(Item *item);
 
     void EquipItem(Item& item);
-    //void Stay();
-    //bool Follow(Player& player);
-    void SendNotEquipList(Player& player);
     void Feast();
     void InterruptCurrentCastingSpell();
-    void GetCombatTarget(Unit* forcedTarged = 0);
-    Unit *GetCurrentTarget() { return m_targetCombat; };
-    void DoNextCombatManeuver();
-    void DoCombatMovement();
+    void DoCombatManeuver(Unit* = NULL);
+    BotCombatType GetCombatType();
     void SetIgnoreUpdateTime(uint8 t = 0) { m_ignoreAIUpdatesUntilTime = time(0) + t; };
+    void SetEnterBGTime(uint8 t = 0) { m_enterBg = time(0) + t; };
 
-    Player *GetPlayerBot() const { return m_bot; }
-    Player *GetPlayer() const { return m_bot; }
-    Player *GetMaster() const;
+    Player *GetLeader() const;
+    void SetLeader(Player* pl);
+
+    uint16 getRole() { return m_role; };
+    void setRole(uint16 role) { m_new_role = role; };
 
     BotState GetState() { return m_botState; };
     void SetState(BotState state);
     void SetQuestNeedItems();
     void SendQuestItemList(Player& player);
-    void SendOrders(Player& player);
-    bool FollowCheckTeleport(WorldObject &obj);
+    bool FollowCheckTeleport(WorldObject *obj);
     void DoLoot();
+    void DoFlight();
+    void GetTaxi(ObjectGuid guid, BotTaxiNode& nodes);
 
-    bool HasCollectFlag(uint8 flag) { return m_collectionFlags & flag; }
-    void SetCollectFlag(uint8 flag)
-    {
-        if (HasCollectFlag(flag)) m_collectionFlags &= ~flag;
-        else m_collectionFlags |= flag;
-    }
+    bool CheckTeleport();
+    bool CheckLeader();
+    bool CheckGroup();
+    void InitBotStatsForLevel(uint32, bool = false);
+    void CheckRoles();
+    void CheckBG();
 
     uint32 EstRepairAll();
     uint32 EstRepair(uint16 pos);
@@ -319,96 +222,72 @@ public:
     void TurnInQuests(WorldObject *questgiver);
 
     bool IsInCombat();
-    void UpdateAttackerInfo();
-    Unit* FindAttacker(ATTACKERINFOTYPE ait = AIT_NONE, Unit *victim = 0);
-    uint32 GetAttackerCount() { return m_attackerInfo.size(); };
-    void SetCombatOrderByStr(std::string str, Unit *target = 0);
-    void SetCombatOrder(CombatOrderType co, Unit *target = 0);
-    CombatOrderType GetCombatOrder() { return this->m_combatOrder; }
-    void SetMovementOrder(MovementOrderType mo, Unit *followTarget = 0);
-    MovementOrderType GetMovementOrder() { return this->m_movementOrder; }
-    void MovementReset();
-    void MovementClear();
-    bool IsMoving();
+    Unit* FindPOI();
+    Unit* FindEnemy();
 
-    void SetInFront(const Unit* obj);
+    void CheckMount();
+    void UnMount();
+    Player* FindGroupRandomRealPlayer();
+    Player* FindGroupRandomPlayer(Classes _class);
+    Player* FindGroupMainTank();
+    bool MasterIsMainTank() { return m_bot!=GetLeader() && GetLeader()==FindGroupMainTank(); };
+
+    bool SetInFront(const Unit* obj);
 
     void ItemLocalization(std::string& itemName, const uint32 itemID) const;
     void QuestLocalization(std::string& questTitle, const uint32 questID) const;
 
     uint8 GetFreeBagSpace() const;
 
+    void SetFollowTarget(Unit *followTarget, bool forced = false);
+    float GetDist() { return GetCombatType()==BOTCOMBAT_CAC ? MAX_DIST_COMBAT_CAC_TARGET : MAX_DIST_COMBAT_RANGED_TARGET; };
+    void MoveTo(Unit*, float = 0.0f, float = 1.0f, float = 3.0f);
+    void MoveTo(float, float, float);
+    bool HasArrived();
+
+    void Pull();
+
+    void MoveInLineOfSight(Unit *);               //Not used
+    void AttackStart(Unit *);                     //Always attack new target with this
+    void EnterEvadeMode() {};                     //Not implemented
+    void AttackedBy(Unit*) {};                    //Not used
+    bool IsVisible(Unit *) const {return true;};  //Not used
+    bool IsInEvadeMode() const {return false;};   //Not used
+
+    bool IsValidEnemy(Unit *, bool = false);
+    Unit *GetNewCombatTarget(bool = false);
+
 private:
-    // ****** Closed Actions ********************************
-    // These actions may only be called at special times.
-    // Trade methods are only applicable when the trade window is open
-    // and are only called from within HandleCommand.
-    bool TradeItem(const Item& item, int8 slot = -1);
-    bool TradeCopper(uint32 copper);
-
-    // Helper routines not needed by class AIs.
-    void UpdateAttackersForTarget(Unit *victim);
-
-    // it is safe to keep these back reference pointers because m_bot
-    // owns the "this" object and m_master owns m_bot. The owner always cleans up.
     PlayerbotMgr* const m_mgr;
     Player* const m_bot;
     PlayerbotClassAI* m_classAI;
+    uint16 m_role, m_new_role;
 
-    // ignores AI updates until time specified
-    // no need to waste CPU cycles during casting etc
     time_t m_ignoreAIUpdatesUntilTime;
+    uint32 m_CurrentlyCastingSpellId;
+    time_t m_enterBg, m_leaveBg;
 
-    CombatStyle m_combatStyle;
-    CombatOrderType m_combatOrder;
-    MovementOrderType m_movementOrder;
-
-    ScenarioType m_ScenarioType;
-
-    // defines the state of behaviour of the bot
     BotState m_botState;
 
-    // list of items needed to fullfill quests
     BotNeedItem m_needItemList;
 
-    // list of creatures we recently attacked and want to loot
-    BotLootCreature m_lootTargets;      // list of creatures
-    BotSpellList m_spellsToLearn;       // list of spells
-    ObjectGuid m_lootCurrent;           // current remains of interest
-    ObjectGuid m_lootPrev;              // previous loot
-    BotLootEntry m_collectObjects;      // object entries searched for in findNearbyGO
-
-    uint8 m_collectionFlags;            // what the bot should look for to loot
+    BotTaxiNode m_taxiNodes;
 
     time_t m_TimeDoneEating;
     time_t m_TimeDoneDrinking;
-    uint32 m_CurrentlyCastingSpellId;
-    //bool m_IsFollowingMaster;
 
-    // if master commands bot to do something, store here until updateAI
-    // can do it
-    uint32 m_spellIdCommand;
-    ObjectGuid m_targetGuidCommand;
+    uint64 m_targetGuidCommand;
+    ObjectGuid m_taxiMaster;
 
-    AttackerInfoList m_attackerInfo;
+    Creature* m_lootCreature;
+    BotVictimList m_victimList;
 
-    bool m_targetChanged;
-    CombatTargetType m_targetType;
+    Unit* m_latestVictim;
 
-    Unit *m_targetCombat;       // current combat target
-    Unit *m_targetAssist;       // get new target by checking attacker list of assisted player
-    Unit *m_targetProtect;      // check
-
-    Unit *m_followTarget;       // whom to follow in non combat situation?
-
-    uint32 FISHING,
-           HERB_GATHERING,
-           MINING,
-           SKINNING;
+    float orig_x, orig_y, orig_z;
+    uint32 orig_map;
 
     SpellRanges m_spellRangeMap;
-
-    float m_destX, m_destY, m_destZ; // latest coordinates for chase and point movement types
 };
 
 #endif

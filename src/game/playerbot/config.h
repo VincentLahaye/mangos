@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,20 +16,19 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include "PlayerbotClassAI.h"
-#include "Common.h"
+#ifndef PB_CONFIG_H
+#define PB_CONFIG_H
 
-PlayerbotClassAI::PlayerbotClassAI(Player* const bot, PlayerbotAI* const ai): m_bot(bot), m_ai(ai) {}
-PlayerbotClassAI::~PlayerbotClassAI() {}
+#include "Platform/CompilerDefs.h"
 
-bool PlayerbotClassAI::DoCombatManeuver(Unit *, bool) { return false; }
-void PlayerbotClassAI::DoFastBuffOnOneself() {}
-bool PlayerbotClassAI::DoEvadeAction() { return false; }
-bool PlayerbotClassAI::DoProtectSelfAction() { return false; }
+// Format is YYYYMMDDRR where RR is the change in the conf file
+// for that day.
+#define PLAYERBOT_CONF_VERSION    2010062001
 
-void PlayerbotClassAI::DoNonCombatActions(){}
+#if PLATFORM == PLATFORM_WINDOWS
+  #define _PLAYERBOT_CONFIG  "playerbot.conf"
+#else
+  #define _PLAYERBOT_CONFIG  SYSCONFDIR "playerbot.conf"
+#endif
 
-bool PlayerbotClassAI::BuffPlayer(Player* target) { return false; }
-
-void PlayerbotClassAI::InitSpells(PlayerbotAI* const ai) {}
-void PlayerbotClassAI::ReinitCycles() {};
+#endif

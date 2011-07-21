@@ -1,23 +1,5 @@
-/*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
- */
-
-#ifndef _PLAYERBOTWARLOCKAI_H
-#define _PLAYERBOTWARLOCKAI_H
+#ifndef _PlayerbotWarlockAI_H
+#define _PlayerbotWarlockAI_H
 
 #include "PlayerbotClassAI.h"
 
@@ -108,7 +90,6 @@ enum WarlockSpells
     ENSLAVE_DEMON_1                 = 1098,
     EYE_OF_KILROGG_1                = 126,
     FEAR_1                          = 5782,
-    SIPHON_LIFE_1                   = 86667,
     FEL_ARMOR_1                     = 28176,
     FEL_DOMINATION_1                = 18708,
     HAUNT_1                         = 48181,
@@ -150,22 +131,17 @@ enum WarlockSpells
 class MANGOS_DLL_SPEC PlayerbotWarlockAI : PlayerbotClassAI
 {
 public:
-    PlayerbotWarlockAI(Player* const bot, PlayerbotAI* const ai);
+    PlayerbotWarlockAI(Player * const master, Player * const bot, PlayerbotAI * const ai);
     virtual ~PlayerbotWarlockAI();
 
     // all combat actions go here
-    bool DoCombatManeuver(Unit*, bool);
+    void DoNextCombatManeuver(Unit*);
 
     // all non combat actions go here, ex buffs, heals, rezzes
     void DoNonCombatActions();
 
     // buff a specific player, usually a real PC who is not in group
     //void BuffPlayer(Player *target);
-
-    void InitSpells(PlayerbotAI* const ai);
-    bool InitPet();
-    void ReinitCycles();
-    bool IsBetterPet(DemonEntry);
 
 private:
 
@@ -188,8 +164,7 @@ private:
            SEED_OF_CORRUPTION,
            DARK_PACT,
            HOWL_OF_TERROR,
-           FEAR,
-           SIPHON_LIFE;
+           FEAR;
 
     // DESTRUCTION
     uint32 SHADOW_BOLT,
@@ -261,8 +236,14 @@ private:
            BERSERKING,
            WILL_OF_THE_FORSAKEN;
 
-    uint32 LastSpellCurses, LastSpellSummoning, LastSpellDestruction;
-    bool petInitAi;
+    uint32 SpellSequence,
+           LastSpellCurse,
+           LastSpellAffliction,
+           LastSpellDestruction;
+
+    uint32 m_lastDemon;      // Last demon entry used for spell initialization
+    uint32 m_demonOfChoice;  // Preferred demon entry
+    bool m_isTempImp;        // True if imp summoned temporarily until soul shard acquired for demon of choice.
 };
 
 #endif

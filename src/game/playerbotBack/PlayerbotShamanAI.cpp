@@ -1,31 +1,8 @@
-/*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
- */
 
 #include "PlayerbotShamanAI.h"
 
 class PlayerbotAI;
-
-PlayerbotShamanAI::PlayerbotShamanAI(Player* const bot, PlayerbotAI* const ai): PlayerbotClassAI(bot, ai)
-{
-    InitSpells(ai);
-}
-
-void PlayerbotShamanAI::InitSpells(PlayerbotAI* const ai)
+PlayerbotShamanAI::PlayerbotShamanAI(Player* const master, Player* const bot, PlayerbotAI* const ai) : PlayerbotClassAI(master, bot, ai)
 {
     // restoration
     CHAIN_HEAL               = ai->initSpell(CHAIN_HEAL_1);
@@ -93,7 +70,7 @@ void PlayerbotShamanAI::InitSpells(PlayerbotAI* const ai)
 
 PlayerbotShamanAI::~PlayerbotShamanAI() {}
 
-void PlayerbotShamanAI::HealTarget(Unit *target, uint8 hp)
+void PlayerbotShamanAI::HealTarget(Unit &target, uint8 hp)
 {
     PlayerbotAI* ai = GetAI();
     Player *m_bot = GetPlayerBot();
@@ -102,17 +79,31 @@ void PlayerbotShamanAI::HealTarget(Unit *target, uint8 hp)
         ai->CastSpell(HEALING_WAVE, target);
     else if (hp < 45 && LESSER_HEALING_WAVE > 0 && ai->GetManaPercent() >= 19)
         ai->CastSpell(LESSER_HEALING_WAVE, target);
-    else if (hp < 55 && RIPTIDE > 0 && !target->HasAura(RIPTIDE, EFFECT_INDEX_0) && ai->GetManaPercent() >= 21)
+    else if (hp < 55 && RIPTIDE > 0 && !target.HasAura(RIPTIDE, EFFECT_INDEX_0) && ai->GetManaPercent() >= 21)
         ai->CastSpell(RIPTIDE, target);
     else if (hp < 70 && CHAIN_HEAL > 0 && ai->GetManaPercent() >= 24)
         ai->CastSpell(CHAIN_HEAL, target);
+    // end HealTarget
 }
 
-bool PlayerbotShamanAI::DoCombatManeuver(Unit *pTarget, bool cac)
+void PlayerbotShamanAI::DoNextCombatManeuver(Unit *pTarget)
 {
-    PlayerbotAI *ai = GetAI();
-    Player * m_bot = GetPlayerBot();
-    Player* m_master = ai->GetLeader();
+    PlayerbotAI* ai = GetAI();
+    if (!ai)
+        return;
+
+    switch (ai->GetScenarioType())
+    {
+        case PlayerbotAI::SCENARIO_DUEL:
+            ai->CastSpell(LIGHTNING_BOLT);
+            return;
+    }
+
+    // ------- Non Duel combat ----------
+
+    ai->SetMovementOrder(PlayerbotAI::MOVEMENT_FOLLOW, GetMaster());   // dont want to melee mob <----changed
+
+    Player *m_bot = GetPlayerBot();
     Group *m_group = m_bot->GetGroup();
 
     // Heal myself
@@ -121,16 +112,16 @@ bool PlayerbotShamanAI::DoCombatManeuver(Unit *pTarget, bool cac)
     else if (ai->GetHealthPercent() < 50 && ai->GetManaPercent() >= 19)
         ai->CastSpell(LESSER_HEALING_WAVE);
     else if (ai->GetHealthPercent() < 70)
-        HealTarget(m_bot, ai->GetHealthPercent());
+        HealTarget (*m_bot, ai->GetHealthPercent());
 
     // Heal master
-    uint32 masterHP = m_master->GetHealth() * 100 / m_master->GetMaxHealth();
-    if (m_master->isAlive())
+    uint32 masterHP = GetMaster()->GetHealth() * 100 / GetMaster()->GetMaxHealth();
+    if (GetMaster()->isAlive())
     {
         if (masterHP < 30 && ai->GetManaPercent() >= 32)
-            ai->CastSpell(HEALING_WAVE, m_master);
+            ai->CastSpell(HEALING_WAVE, *(GetMaster()));
         else if (masterHP < 70)
-            HealTarget(m_master, masterHP);
+            HealTarget (*GetMaster(), masterHP);
     }
 
     // Heal group
@@ -145,11 +136,13 @@ bool PlayerbotShamanAI::DoCombatManeuver(Unit *pTarget, bool cac)
 
             uint32 memberHP = m_groupMember->GetHealth() * 100 / m_groupMember->GetMaxHealth();
             if (memberHP < 30)
-                HealTarget(m_groupMember, memberHP);
+                HealTarget(*m_groupMember, memberHP);
         }
     }
 
     // Damage Spells
+    ai->SetInFront(pTarget);
+
     switch (SpellSequence)
     {
         case SPELL_ENHANCEMENT:
@@ -169,7 +162,7 @@ bool PlayerbotShamanAI::DoCombatManeuver(Unit *pTarget, bool cac)
             }
             else if (FOCUSED > 0 && LastSpellEnhancement == 2)
             {
-                ai->CastSpell(FOCUSED, pTarget);
+                ai->CastSpell(FOCUSED, *pTarget);
                 SpellSequence = SPELL_RESTORATION;
                 LastSpellEnhancement = LastSpellEnhancement + 1;
                 break;
@@ -218,14 +211,14 @@ bool PlayerbotShamanAI::DoCombatManeuver(Unit *pTarget, bool cac)
             }
             else if (STORMSTRIKE > 0 && LastSpellEnhancement == 4 && (!pTarget->HasAura(STORMSTRIKE, EFFECT_INDEX_0)) && ai->GetManaPercent() >= 8)
             {
-                ai->CastSpell(STORMSTRIKE, pTarget);
+                ai->CastSpell(STORMSTRIKE, *pTarget);
                 SpellSequence = SPELL_RESTORATION;
                 LastSpellEnhancement = LastSpellEnhancement + 1;
                 break;
             }
             else if (LAVA_LASH > 0 && LastSpellEnhancement == 6 && ai->GetManaPercent() >= 4)
             {
-                ai->CastSpell(LAVA_LASH, pTarget);
+                ai->CastSpell(LAVA_LASH, *pTarget);
                 SpellSequence = SPELL_RESTORATION;
                 LastSpellEnhancement = LastSpellEnhancement + 1;
                 break;
@@ -251,14 +244,14 @@ bool PlayerbotShamanAI::DoCombatManeuver(Unit *pTarget, bool cac)
                 LastSpellEnhancement = LastSpellEnhancement + 1;
                 break;
             }
-            else if (BLOODLUST > 0 && LastSpellEnhancement == 8 && (!m_master->HasAura(BLOODLUST, EFFECT_INDEX_0)) && ai->GetManaPercent() >= 26)
+            else if (BLOODLUST > 0 && LastSpellEnhancement == 8 && (!GetMaster()->HasAura(BLOODLUST, EFFECT_INDEX_0)) && ai->GetManaPercent() >= 26)
             {
                 ai->CastSpell(BLOODLUST);
                 SpellSequence = SPELL_RESTORATION;
                 LastSpellEnhancement = LastSpellEnhancement + 1;
                 break;
             }
-            else if (HEROISM > 0 && LastSpellEnhancement == 10 && (!m_master->HasAura(HEROISM, EFFECT_INDEX_0)) && ai->GetManaPercent() >= 26)
+            else if (HEROISM > 0 && LastSpellEnhancement == 10 && (!GetMaster()->HasAura(HEROISM, EFFECT_INDEX_0)) && ai->GetManaPercent() >= 26)
             {
                 ai->CastSpell(HEROISM);
                 SpellSequence = SPELL_RESTORATION;
@@ -267,7 +260,7 @@ bool PlayerbotShamanAI::DoCombatManeuver(Unit *pTarget, bool cac)
             }
             else if (SHAMANISTIC_RAGE > 0 && (!m_bot->HasAura(SHAMANISTIC_RAGE, EFFECT_INDEX_0)) && LastSpellEnhancement == 11)
             {
-                ai->CastSpell(SHAMANISTIC_RAGE, m_bot);
+                ai->CastSpell(SHAMANISTIC_RAGE, *m_bot);
                 SpellSequence = SPELL_RESTORATION;
                 LastSpellEnhancement = LastSpellEnhancement + 1;
                 break;
@@ -324,7 +317,7 @@ bool PlayerbotShamanAI::DoCombatManeuver(Unit *pTarget, bool cac)
         case SPELL_ELEMENTAL:
             if (LIGHTNING_BOLT > 0 && LastSpellElemental == 1 && ai->GetManaPercent() >= 13)
             {
-                ai->CastSpell(LIGHTNING_BOLT, pTarget);
+                ai->CastSpell(LIGHTNING_BOLT, *pTarget);
                 SpellSequence = SPELL_ENHANCEMENT;
                 LastSpellElemental = LastSpellElemental + 1;
                 break;
@@ -345,14 +338,14 @@ bool PlayerbotShamanAI::DoCombatManeuver(Unit *pTarget, bool cac)
             }
             else if (FLAME_SHOCK > 0 && LastSpellElemental == 4 && (!pTarget->HasAura(FLAME_SHOCK, EFFECT_INDEX_0)) && ai->GetManaPercent() >= 22)
             {
-                ai->CastSpell(FLAME_SHOCK, pTarget);
+                ai->CastSpell(FLAME_SHOCK, *pTarget);
                 SpellSequence = SPELL_ENHANCEMENT;
                 LastSpellElemental = LastSpellElemental + 1;
                 break;
             }
             else if (LAVA_BURST > 0 && LastSpellElemental == 5 && (pTarget->HasAura(FLAME_SHOCK, EFFECT_INDEX_0)) && ai->GetManaPercent() >= 10)
             {
-                ai->CastSpell(LAVA_BURST, pTarget);
+                ai->CastSpell(LAVA_BURST, *pTarget);
                 SpellSequence = SPELL_ENHANCEMENT;
                 LastSpellElemental = LastSpellElemental + 1;
                 break;
@@ -373,21 +366,21 @@ bool PlayerbotShamanAI::DoCombatManeuver(Unit *pTarget, bool cac)
             }
             else if (EARTH_SHOCK > 0 && LastSpellElemental == 8 && ai->GetManaPercent() >= 23)
             {
-                ai->CastSpell(EARTH_SHOCK, pTarget);
+                ai->CastSpell(EARTH_SHOCK, *pTarget);
                 SpellSequence = SPELL_ENHANCEMENT;
                 LastSpellElemental = LastSpellElemental + 1;
                 break;
             }
             else if (PURGE > 0 && LastSpellElemental == 9 && ai->GetManaPercent() >= 8)
             {
-                ai->CastSpell(PURGE, pTarget);
+                ai->CastSpell(PURGE, *pTarget);
                 SpellSequence = SPELL_ENHANCEMENT;
                 LastSpellElemental = LastSpellElemental + 1;
                 break;
             }
             else if (WIND_SHOCK > 0 && LastSpellElemental == 10 && ai->GetManaPercent() >= 8)
             {
-                ai->CastSpell(WIND_SHOCK, pTarget);
+                ai->CastSpell(WIND_SHOCK, *pTarget);
                 SpellSequence = SPELL_ENHANCEMENT;
                 LastSpellElemental = LastSpellElemental + 1;
                 break;
@@ -401,14 +394,14 @@ bool PlayerbotShamanAI::DoCombatManeuver(Unit *pTarget, bool cac)
             }
             else if (FROST_SHOCK > 0 && LastSpellElemental == 12 && (!pTarget->HasAura(FROST_SHOCK, EFFECT_INDEX_0)) && ai->GetManaPercent() >= 23)
             {
-                ai->CastSpell(FROST_SHOCK, pTarget);
+                ai->CastSpell(FROST_SHOCK, *pTarget);
                 SpellSequence = SPELL_ENHANCEMENT;
                 LastSpellElemental = LastSpellElemental + 1;
                 break;
             }
             else if (CHAIN_LIGHTNING > 0 && LastSpellElemental == 13 && ai->GetManaPercent() >= 33)
             {
-                ai->CastSpell(CHAIN_LIGHTNING, pTarget);
+                ai->CastSpell(CHAIN_LIGHTNING, *pTarget);
                 SpellSequence = SPELL_ENHANCEMENT;
                 LastSpellElemental = LastSpellElemental + 1;
                 break;
@@ -446,26 +439,26 @@ bool PlayerbotShamanAI::DoCombatManeuver(Unit *pTarget, bool cac)
                 SpellSequence = SPELL_ENHANCEMENT;
             }
     }
-    return false;
-}
+} // end DoNextCombatManeuver
 
 void PlayerbotShamanAI::DoNonCombatActions()
 {
-    PlayerbotAI *ai = GetAI();
+    PlayerbotAI* ai = GetAI();
     Player * m_bot = GetPlayerBot();
-    Player* m_master = ai->GetLeader();
+    if (!m_bot)
+        return;
 
     SpellSequence = SPELL_ENHANCEMENT;
 
     // buff master with EARTH_SHIELD
     if (EARTH_SHIELD > 0)
-        (!m_master->HasAura(EARTH_SHIELD, EFFECT_INDEX_0) && ai->CastSpell(EARTH_SHIELD, m_master));
+        (!GetMaster()->HasAura(EARTH_SHIELD, EFFECT_INDEX_0) && ai->CastSpell(EARTH_SHIELD, *(GetMaster())));
 
     // buff myself with WATER_SHIELD, LIGHTNING_SHIELD
     if (WATER_SHIELD > 0)
-        (!m_bot->HasAura(WATER_SHIELD, EFFECT_INDEX_0) && !m_bot->HasAura(LIGHTNING_SHIELD, EFFECT_INDEX_0) && ai->CastSpell(WATER_SHIELD, m_bot));
+        (!m_bot->HasAura(WATER_SHIELD, EFFECT_INDEX_0) && !m_bot->HasAura(LIGHTNING_SHIELD, EFFECT_INDEX_0) && ai->CastSpell(WATER_SHIELD, *m_bot));
     else if (LIGHTNING_SHIELD > 0)
-        (!m_bot->HasAura(LIGHTNING_SHIELD, EFFECT_INDEX_0) && !m_bot->HasAura(WATER_SHIELD, EFFECT_INDEX_0) && ai->CastSpell(LIGHTNING_SHIELD, m_bot));
+        (!m_bot->HasAura(LIGHTNING_SHIELD, EFFECT_INDEX_0) && !m_bot->HasAura(WATER_SHIELD, EFFECT_INDEX_0) && ai->CastSpell(LIGHTNING_SHIELD, *m_bot));
 /*
        // buff myself weapon
        if (ROCKBITER_WEAPON > 0)
@@ -479,11 +472,43 @@ void PlayerbotShamanAI::DoNonCombatActions()
        else if (FROSTBRAND_WEAPON > 0)
             (!m_bot->HasAura(FROSTBRAND_WEAPON, EFFECT_INDEX_0) && !m_bot->HasAura(EARTHLIVING_WEAPON, EFFECT_INDEX_0) && !m_bot->HasAura(WINDFURY_WEAPON, EFFECT_INDEX_0) && !m_bot->HasAura(FLAMETONGUE_WEAPON, EFFECT_INDEX_0) && !m_bot->HasAura(ROCKBITER_WEAPON, EFFECT_INDEX_0) && ai->CastSpell(FROSTBRAND_WEAPON,*m_bot) );
  */
+    // mana check
+    if (m_bot->getStandState() != UNIT_STAND_STATE_STAND)
+        m_bot->SetStandState(UNIT_STAND_STATE_STAND);
+
+    Item* pItem = ai->FindDrink();
+    Item* fItem = ai->FindBandage();
+
+    if (pItem != NULL && ai->GetManaPercent() < 30)
+    {
+        ai->TellMaster("I could use a drink.");
+        ai->UseItem(pItem);
+        return;
+    }
+
+    // hp check
+    if (m_bot->getStandState() != UNIT_STAND_STATE_STAND)
+        m_bot->SetStandState(UNIT_STAND_STATE_STAND);
+
+    pItem = ai->FindFood();
+
+    if (pItem != NULL && ai->GetHealthPercent() < 30)
+    {
+        ai->TellMaster("I could use some food.");
+        ai->UseItem(pItem);
+        return;
+    }
+    else if (pItem == NULL && fItem != NULL && !m_bot->HasAura(RECENTLY_BANDAGED, EFFECT_INDEX_0) && ai->GetHealthPercent() < 70)
+    {
+        ai->TellMaster("I could use first aid.");
+        ai->UseItem(fItem);
+        return;
+    }
 
     // heal master's group
-    if (m_master->GetGroup())
+    if (GetMaster()->GetGroup())
     {
-        Group::MemberSlotList const& groupSlot = m_master->GetGroup()->GetMemberSlots();
+        Group::MemberSlotList const& groupSlot = GetMaster()->GetGroup()->GetMemberSlots();
         for (Group::member_citerator itr = groupSlot.begin(); itr != groupSlot.end(); itr++)
         {
             Player *tPlayer = sObjectMgr.GetPlayer(itr->guid);
@@ -491,7 +516,7 @@ void PlayerbotShamanAI::DoNonCombatActions()
                 continue;
 
             // heal
-            (HealTarget(tPlayer, tPlayer->GetHealth() * 100 / tPlayer->GetMaxHealth()));
+            (HealTarget(*tPlayer, tPlayer->GetHealth() * 100 / tPlayer->GetMaxHealth()));
         }
     }
-}
+} // end DoNonCombatActions

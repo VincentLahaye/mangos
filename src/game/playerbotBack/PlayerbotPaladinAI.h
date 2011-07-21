@@ -1,23 +1,5 @@
-/*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
- */
-
-#ifndef _PLAYERBOTPALADINAI_H
-#define _PLAYERBOTPALADINAI_H
+#ifndef _PlayerbotPaladinAI_H
+#define _PlayerbotPaladinAI_H
 
 #include "PlayerbotClassAI.h"
 
@@ -86,36 +68,30 @@ enum PaladinSpells
     SEAL_OF_CORRUPTION              = 53736,
     SEAL_OF_JUSTICE_1               = 20164,
     SEAL_OF_LIGHT_1                 = 20165,
-    SEAL_OF_RIGHTEOUSNESS_1         = 20154,
+    SEAL_OF_RIGHTEOUSNESS_1         = 21084,
     SEAL_OF_VENGEANCE               = 31801,
     SEAL_OF_WISDOM_1                = 20166,
     SENSE_UNDEAD_1                  = 5502,
     SHADOW_RESISTANCE_AURA_1        = 19876,
     SHIELD_OF_RIGHTEOUSNESS_1       = 53600,
-    TURN_EVIL_1                     = 10326,
-    
-    // Aura for exorcism or flash heal instant
-    AURA_ART_OF_WAR                 = 59578
+    TURN_EVIL_1                     = 10326
 };
 //class Player;
 
 class MANGOS_DLL_SPEC PlayerbotPaladinAI : PlayerbotClassAI
 {
 public:
-    PlayerbotPaladinAI(Player* const bot, PlayerbotAI* const ai);
+    PlayerbotPaladinAI(Player * const master, Player * const bot, PlayerbotAI * const ai);
     virtual ~PlayerbotPaladinAI();
 
     // all combat actions go here
-    bool DoCombatManeuver(Unit*, bool);
-    bool DoProtectSelfAction();
+    void DoNextCombatManeuver(Unit*);
 
     // all non combat actions go here, ex buffs, heals, rezzes
     void DoNonCombatActions();
 
     // buff a specific player, usually a real PC who is not in group
     bool BuffPlayer(Player *target);
-
-    void InitSpells(PlayerbotAI* const ai);
 
 private:
     // Heals the target based off its hps

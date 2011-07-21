@@ -1,21 +1,3 @@
-/*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
- */
-
 #ifndef _PLAYERBOTSHAMANAI_H
 #define _PLAYERBOTSHAMANAI_H
 
@@ -102,20 +84,18 @@ enum
 class MANGOS_DLL_SPEC PlayerbotShamanAI : PlayerbotClassAI
 {
 public:
-    PlayerbotShamanAI(Player* const bot, PlayerbotAI* const ai);
+    PlayerbotShamanAI(Player * const master, Player * const bot, PlayerbotAI * const ai);
     virtual ~PlayerbotShamanAI();
 
     // all combat actions go here
-    bool DoCombatManeuver(Unit*, bool);
+    void DoNextCombatManeuver(Unit*);
 
     // all non combat actions go here, ex buffs, heals, rezzes
     void DoNonCombatActions();
 
-    void InitSpells(PlayerbotAI* const ai);
-
 private:
     // Heals the target based off its hps
-    void HealTarget (Unit* target, uint8 hp);
+    void HealTarget (Unit& target, uint8 hp);
 
     // ENHANCEMENT
     uint32 ROCKBITER_WEAPON, STONESKIN_TOTEM, LIGHTNING_SHIELD, FLAMETONGUE_WEAPON, STRENGTH_OF_EARTH_TOTEM, FOCUSED, FROSTBRAND_WEAPON, FROST_RESISTANCE_TOTEM, FLAMETONGUE_TOTEM, FIRE_RESISTANCE_TOTEM, WINDFURY_WEAPON, GROUNDING_TOTEM, NATURE_RESISTANCE_TOTEM, WIND_FURY_TOTEM, STORMSTRIKE, LAVA_LASH, SHAMANISTIC_RAGE, WRATH_OF_AIR_TOTEM, EARTH_ELEMENTAL_TOTEM, BLOODLUST, HEROISM, FERAL_SPIRIT;

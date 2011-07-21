@@ -1,21 +1,3 @@
-/*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
- */
-
 #ifndef _PLAYERBOTDRUIDAI_H
 #define _PLAYERBOTDRUIDAI_H
 
@@ -45,6 +27,7 @@ enum DruidSpells
     CYCLONE_1                       = 33786,
     DASH_1                          = 1850,
     DEMORALIZING_ROAR_1             = 99,
+    DIRE_BEAR_FORM_1                = 9634,
     ENRAGE_1                        = 5229,
     ENTANGLING_ROOTS_1              = 339,
     FAERIE_FIRE_1                   = 770,
@@ -78,7 +61,6 @@ enum DruidSpells
     NOURISH_1                       = 50464,
     POUNCE_1                        = 9005,
     PROWL_1                         = 5215,
-    PULVERIZE_1                     = 80313,
     RAKE_1                          = 1822,
     RAVAGE_1                        = 6785,
     REBIRTH_1                       = 20484,
@@ -107,94 +89,101 @@ enum DruidSpells
     WRATH_1                         = 5176
 };
 
+//class Player;
+
 class MANGOS_DLL_SPEC PlayerbotDruidAI : PlayerbotClassAI
 {
-    public:
-        PlayerbotDruidAI(Player* const bot, PlayerbotAI* const ai);
-        virtual ~PlayerbotDruidAI();
-        bool DoCombatManeuver(Unit*, bool);
-        bool DoProtectSelfAction();
-        void DoNonCombatActions();
-        bool BuffPlayer();
-        void InitSpells(PlayerbotAI* const ai);
-        void ReinitCycles();
-        bool ChangeForm();
-        bool HealTarget();
-        bool ReviveTarget();
+public:
+    PlayerbotDruidAI(Player * const master, Player * const bot, PlayerbotAI * const ai);
+    virtual ~PlayerbotDruidAI();
 
-    private:
-        uint32 CAT_FORM,
-               BEAR_FORM,
-               MOONKIN_FORM,
-               TREE_OF_LIFE,
-               TRAVEL_FORM;
+    // all combat actions go here
+    void DoNextCombatManeuver(Unit*);
 
-        uint32 CLAW,
-               COWER,
-               TIGERS_FURY,
-               RIP,
-               FEROCIOUS_BITE,
-               MAIM,
-               SAVAGE_ROAR,
-               MANGLE_CAT,
-               RAKE,
-               SHRED,
-               BERSERK,
-               PULVERIZE,
-               FAERIE_FIRE_FERAL,
-               MANGLE_BEAR,
-               LACERATE,
-               SWIPE_BEAR;
+    // all non combat actions go here, ex buffs, heals, rezzes
+    void DoNonCombatActions();
 
-        uint32 BASH,
-               MAUL,
-               SWIPE,
-               DEMORALIZING_ROAR,
-               CHALLENGING_ROAR,
-               GROWL,
-               ENRAGE;
+    // buff a specific player, usually a real PC who is not in group
+    bool BuffPlayer(Player *target);
 
-        uint32 MOONFIRE,
-               ROOTS,
-               WRATH,
-               STARFALL,
-               STARFIRE,
-               INSECT_SWARM,
-               FAERIE_FIRE,
-               FORCE_OF_NATURE,
-               HURRICANE;
+private:
+    // Heals the target based off its hps
+    bool HealTarget (Unit *target);
+    // Callback method to reset shapeshift forms blocking buffs and heals
+    static void GoBuffForm(Player *self);
 
-        uint32 MARK_OF_THE_WILD,
-               GIFT_OF_THE_WILD,
-               THORNS,
-               INNERVATE,
-               BARKSKIN,
-               SURVIVAL_INSTINCTS;
+    // druid cat/bear/dire bear/moonkin/tree of life forms
+    uint32 CAT_FORM,
+           BEAR_FORM,
+           DIRE_BEAR_FORM,
+           MOONKIN_FORM,
+           TREE_OF_LIFE,
+           TRAVEL_FORM;
 
-        uint32 LIFEBLOOM,
-               REJUVENATION,
-               REGROWTH,
-               NOURISH,
-               HEALING_TOUCH,
-               WILD_GROWTH,
-               SWIFTMEND,
-               TRANQUILITY,
-               REVIVE;
+    // druid cat attacks
+    uint32 CLAW,
+           COWER,
+           TIGERS_FURY,
+           RAKE,
+           RIP,
+           FEROCIOUS_BITE,
+           MAIM,
+           MANGLE;
 
-        uint32 RECENTLY_BANDAGED;
+    // druid bear/dire bear attacks & buffs
+    uint32 BASH,
+           MAUL,
+           SWIPE,
+           DEMORALIZING_ROAR,
+           CHALLENGING_ROAR,
+           GROWL,
+           ENRAGE;
 
-        uint32 ARCANE_TORRENT,
-               GIFT_OF_THE_NAARU,
-               STONEFORM,
-               ESCAPE_ARTIST,
-               EVERY_MAN_FOR_HIMSELF,
-               SHADOWMELD,
-               BLOOD_FURY,
-               WAR_STOMP,
-               BERSERKING,
-               WILL_OF_THE_FORSAKEN;
+    // druid attacks & debuffs
+    uint32 MOONFIRE,
+           ROOTS,
+           WRATH,
+           STARFALL,
+           STARFIRE,
+           INSECT_SWARM,
+           FAERIE_FIRE,
+           FORCE_OF_NATURE,
+           HURRICANE;
 
-        uint32 LastSpellDruidFeralCat, LastSpellDruidFeralBear, LastSpellDruidBalance;
+    // druid buffs
+    uint32 MARK_OF_THE_WILD,
+           GIFT_OF_THE_WILD,
+           THORNS,
+           INNERVATE,
+           BARKSKIN;
+
+    // druid heals
+    uint32 LIFEBLOOM,
+           REJUVENATION,
+           REGROWTH,
+           NOURISH,
+           HEALING_TOUCH,
+           WILD_GROWTH,
+           SWIFTMEND,
+           TRANQUILITY,
+           REVIVE;
+
+    // first aid
+    uint32 RECENTLY_BANDAGED;
+
+    // racial
+    uint32 ARCANE_TORRENT,
+           GIFT_OF_THE_NAARU,
+           STONEFORM,
+           ESCAPE_ARTIST,
+           EVERY_MAN_FOR_HIMSELF,
+           SHADOWMELD,
+           BLOOD_FURY,
+           WAR_STOMP,
+           BERSERKING,
+           WILL_OF_THE_FORSAKEN;
+
+    uint32 SpellSequence, DruidSpellCombat;
 };
 
 #endif

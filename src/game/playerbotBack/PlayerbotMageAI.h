@@ -1,25 +1,14 @@
-/*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
- */
-
-#ifndef _PLAYERBOTMAGEAI_H
-#define _PLAYERBOTMAGEAI_H
+#ifndef _PlayerbotMageAI_H
+#define _PlayerbotMageAI_H
 
 #include "PlayerbotClassAI.h"
+
+enum
+{
+    SPELL_FROST,
+    SPELL_FIRE,
+    SPELL_ARCANE
+};
 
 enum MageSpells
 {
@@ -84,22 +73,17 @@ enum MageSpells
 class MANGOS_DLL_SPEC PlayerbotMageAI : PlayerbotClassAI
 {
 public:
-    PlayerbotMageAI(Player* const bot, PlayerbotAI* const ai);
+    PlayerbotMageAI(Player * const master, Player * const bot, PlayerbotAI * const ai);
     virtual ~PlayerbotMageAI();
 
     // all combat actions go here
-    bool DoCombatManeuver(Unit*, bool);
-    bool DoEvadeAction();
-    bool DoProtectSelfAction();
+    void DoNextCombatManeuver(Unit*);
 
     // all non combat actions go here, ex buffs, heals, rezzes
     void DoNonCombatActions();
 
     // buff a specific player, usually a real PC who is not in group
-    bool BuffPlayer();
-
-    void InitSpells(PlayerbotAI* const ai);
-    void ReinitCycles();
+    bool BuffPlayer(Player *target);
 
 private:
     // ARCANE
@@ -167,10 +151,12 @@ private:
            BERSERKING,
            WILL_OF_THE_FORSAKEN;
 
-    uint32 CONJURE_WATER,
+    uint32 SpellSequence,
+           LastSpellArcane,
+           LastSpellFire,
+           LastSpellFrost,
+           CONJURE_WATER,
            CONJURE_FOOD;
-
-    uint32 LastSpellFrost, LastSpellFire, LastSpellArcane;
 };
 
 #endif

@@ -1,21 +1,3 @@
-/*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
- */
-
 #ifndef _PLAYERBOTPRIESTAI_H
 #define _PLAYERBOTPRIESTAI_H
 
@@ -86,28 +68,24 @@ enum PriestSpells
     SILENCE_1                       = 15487,
     SMITE_1                         = 585,
     VAMPIRIC_EMBRACE_1              = 15286,
-    VAMPIRIC_TOUCH_1                = 34914,
-    WEAKENED_SOUL                   = 6788
+    VAMPIRIC_TOUCH_1                = 34914
 };
 //class Player;
 
 class MANGOS_DLL_SPEC PlayerbotPriestAI : PlayerbotClassAI
 {
 public:
-    PlayerbotPriestAI(Player* const bot, PlayerbotAI* const ai);
+    PlayerbotPriestAI(Player * const master, Player * const bot, PlayerbotAI * const ai);
     virtual ~PlayerbotPriestAI();
 
     // all combat actions go here
-    bool DoCombatManeuver(Unit*, bool);
-    bool DoProtectSelfAction();
+    void DoNextCombatManeuver(Unit*);
 
     // all non combat actions go here, ex buffs, heals, rezzes
     void DoNonCombatActions();
 
     // buff a specific player, usually a real PC who is not in group
     bool BuffPlayer(Player *target);
-
-    void InitSpells(PlayerbotAI* const ai);
 
 private:
     // Heals the target based off its hps
@@ -142,11 +120,7 @@ private:
            VAMPIRIC_TOUCH,
            PRAYER_OF_SHADOW_PROTECTION,
            SHADOWFIEND,
-           MIND_SEAR,
-           SHADOWFORM,
-           VAMPIRIC_EMBRACE,
-           SHADOW_WORD_DEATH,
-           DISPERSION;
+           MIND_SEAR;
 
     // discipline
     uint32 POWER_WORD_SHIELD,
@@ -159,8 +133,7 @@ private:
            PENANCE,
            DIVINE_SPIRIT,
            PRAYER_OF_SPIRIT,
-           INNER_FOCUS,
-           PAIN_SUPPRESSION;
+           INNER_FOCUS;
 
     // first aid
     uint32 RECENTLY_BANDAGED;
