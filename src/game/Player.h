@@ -2708,6 +2708,7 @@ class MANGOS_DLL_SPEC Player : public Unit
         DeclinedName *m_declinedname;
         Runes *m_runes;
         EquipmentSets m_EquipmentSets;
+		ItemPrototype const *bIFromSet;
 
         // Refer-A-Friend
         ObjectGuid m_curGrantLevelGiverGuid;
@@ -2757,6 +2758,8 @@ class MANGOS_DLL_SPEC Player : public Unit
          // Playerbot mod:
         PlayerbotAI* m_playerbotAI;
         PlayerbotMgr* m_playerbotMgr;
+		uint32 m_levelAtLoading;
+        time_t timeInArenaQueue [PLAYER_MAX_BATTLEGROUND_QUEUES];
 
         // Homebind coordinates
         uint32 m_homebindMapId;
