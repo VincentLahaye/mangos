@@ -1281,6 +1281,22 @@ class MANGOS_DLL_SPEC Player : public Unit
         Item* EquipNewItem( uint16 pos, uint32 item, bool update );
         Item* EquipItem( uint16 pos, Item *pItem, bool update );
         void AutoUnequipOffhandIfNeed();
+
+		void GetBestItemsForLevel();
+        void GetIndispensableItems();
+        ItemPrototype const* CheckItemSet(ItemPrototype const* bIInSlot, ItemPrototype const* bIFromSet);
+        bool StoreNewItemInBestSlots(ItemPrototype const* bIInSlot);
+        bool OtherItemsInSetAreAllowedForMe(ItemPrototype const* pProto);
+        void RemoveMyEquipement(bool destroy);
+        bool IsForMyClass(ItemPrototype const* pProto);
+        bool IsNotAllowedItem(ItemPrototype const* pProto);
+        ItemPrototype const* BestItemBetween(ItemPrototype const* pProto1, ItemPrototype const* pProto2, bool DPS);
+        ItemPrototype const* CompareItem(ItemPrototype const* pProto1, ItemPrototype const* pProto2, ItemModType pType);
+        void StuffUpdate();
+        void SpellUpdate(bool removespell);
+        bool LearnAllMyTalentsForMyLevel();
+        bool LearnAllMySpellsForMyLevel();
+
         bool StoreNewItemInBestSlots(uint32 item_id, uint32 item_count);
         Item* StoreNewItemInInventorySlot(uint32 itemEntry, uint32 amount);
 
