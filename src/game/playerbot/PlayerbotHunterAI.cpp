@@ -228,14 +228,14 @@ bool PlayerbotHunterAI::DoCombatManeuver(Unit *pTarget, bool cac)
         {
             if (RangedSpellEnabled[i] == 'F')
             {
-                if (m_bot->HasAura(ASPECT_OF_THE_DRAGONHAWK) && !pTarget->HasAuraFromUnit(RangedSpell[i], m_bot) && ai->CastSpell(RangedSpell[i], pTarget))
+                //if (m_bot->HasAura(ASPECT_OF_THE_DRAGONHAWK) && !pTarget->HasAuraFromUnit(RangedSpell[i], m_bot) && ai->CastSpell(RangedSpell[i], pTarget))
                     return true;
-                else
-                    continue;
+                //else
+                //    continue;
             }
             else if (RangedSpellEnabled[i] == '1')
             {
-                if (!pTarget->HasAuraFromUnit(RangedSpell[i], m_bot) && ai->CastSpell(RangedSpell[i], pTarget))
+                //if (!pTarget->HasAuraFromUnit(RangedSpell[i], m_bot) && ai->CastSpell(RangedSpell[i], pTarget))
                     return true;
             }
         }
@@ -244,7 +244,7 @@ bool PlayerbotHunterAI::DoCombatManeuver(Unit *pTarget, bool cac)
     {
         for (uint32 i = 0; i < eltMelee; ++i)
         {
-            if (!pTarget->HasAuraFromUnit(MeleeSpell[i], m_bot) && ai->CastSpell(MeleeSpell[i], pTarget))
+           // if (!pTarget->HasAuraFromUnit(MeleeSpell[i], m_bot) && ai->CastSpell(MeleeSpell[i], pTarget))
                 return true;
         }
     }

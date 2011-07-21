@@ -252,10 +252,10 @@ bool PlayerbotMageAI::BuffPlayer()
 
     if (m_bot == m_master)
     {
-        Unit* buffTarget = m_bot->SelectRandomPlayerToBuffHim(10.0f);
+       /* Unit* buffTarget = m_bot->SelectRandomPlayerToBuffHim(10.0f);
         if (buffTarget && buffTarget->getPowerType()==POWER_MANA)
             if (!ai->Buff(DALARAN_INTELLECT, buffTarget))
-                if (ai->Buff(ARCANE_INTELLECT, buffTarget))
+                if (ai->Buff(ARCANE_INTELLECT, buffTarget))*/
                     return true;
     }
     else if (m_bot->GetGroup())

@@ -115,7 +115,7 @@ bool PlayerbotDruidAI::HealTarget()
     Unit* target = m_bot;
     float targethp = m_bot->GetHealthPercent();
 
-    if (m_bot == m_master)
+    /*if (m_bot == m_master)
     {
         Unit* buffTarget = m_bot->SelectRandomPlayerToBuffHim(10.0f);
         if (buffTarget)
@@ -158,7 +158,7 @@ bool PlayerbotDruidAI::HealTarget()
             }
             ref = ref->next();
         }
-    }
+    }*/
 
     if (!target || targethp > 70.0f)
         return false;
@@ -405,7 +405,7 @@ bool PlayerbotDruidAI::BuffPlayer()
     Player* m_bot = GetPlayerBot();
     Player* m_master = ai->GetLeader();
 
-    if (m_bot == m_master)
+   /* if (m_bot == m_master)
     {
         Unit* buffTarget = m_bot->SelectRandomPlayerToBuffHim(10.0f);
         if (buffTarget)
@@ -448,6 +448,6 @@ bool PlayerbotDruidAI::BuffPlayer()
             }
             ref = ref->next();
         }
-    }
+    }*/
     return false;
 }

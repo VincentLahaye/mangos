@@ -1035,7 +1035,7 @@ void PlayerbotAI::MoveInLineOfSight(Unit *u)
 Unit* PlayerbotAI::FindPOI()
 {
     Unit* destTarget = m_bot->GetMotionMaster()->GetDestinationTarget();
-    if (!destTarget)
+    /*if (!destTarget)
     {
         Unit* target = m_bot->SelectRandomFriendlyTargetBetween(0, 10.0f, MAX_RANGE_MOVEMENT);
         if (target)
@@ -1048,7 +1048,7 @@ Unit* PlayerbotAI::FindPOI()
         if (target && target != destTarget)
             return target;
         return NULL;
-    }
+    }*/
     return destTarget;
 }
 
