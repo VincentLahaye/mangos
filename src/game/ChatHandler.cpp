@@ -242,13 +242,13 @@ void WorldSession::HandleMessagechatOpcode( WorldPacket & recv_data )
             }
 
             // Playerbot mod: handle whispered command to bot
-            if (player->GetPlayerbotAI())
+            /*if (player->GetPlayerbotAI())
             {
                 player->GetPlayerbotAI()->HandleCommand(msg, *GetPlayer());
                 GetPlayer()->m_speakTime = 0;
                 GetPlayer()->m_speakCount = 0;
             }
-            else
+            else*/
                 GetPlayer()->Whisper(msg, lang, player->GetObjectGuid());
         } break;
 
@@ -285,7 +285,7 @@ void WorldSession::HandleMessagechatOpcode( WorldPacket & recv_data )
                 return;
 
             // Playerbot mod: broadcast message to bot members
-            for(GroupReference* itr = group->GetFirstMember(); itr != NULL; itr=itr->next())
+            /*for(GroupReference* itr = group->GetFirstMember(); itr != NULL; itr=itr->next())
             {
                 Player* player = itr->getSource();
                 if (player && player->GetPlayerbotAI())
@@ -294,7 +294,7 @@ void WorldSession::HandleMessagechatOpcode( WorldPacket & recv_data )
                     GetPlayer()->m_speakTime = 0;
                     GetPlayer()->m_speakCount = 0;
                 }
-            }
+            }*/
             // END Playerbot mod
 
             WorldPacket data;
