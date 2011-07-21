@@ -1306,23 +1306,6 @@ class MANGOS_DLL_SPEC Player : public Unit
         void AutoStoreLoot(uint32 loot_id, LootStore const& store, bool broadcast = false, uint8 bag = NULL_BAG, uint8 slot = NULL_SLOT);
         void AutoStoreLoot(Loot& loot, bool broadcast = false, uint8 bag = NULL_BAG, uint8 slot = NULL_SLOT);
 
-        /// Flying mounts everywhere mode
-        void FlyingMountsSpellsToItems();
-        bool CanUseFlyingMounts(SpellEntry const* spellInfo);
-        bool isFlyingSpell(SpellEntry const* spellInfo) const;
-        bool isRunningSpell(SpellEntry const* spellInfo) const;
-        bool isFlyingFormSpell(SpellEntry const* spellInfo) const;
-        bool isRunningFormSpell(SpellEntry const* spellInfo) const;
-        void RemoveFlyingSpells();
-        void RemoveFlyingFormSpells();
-        void RemoveRunningFormSpells();
-        void RemoveAllFlyingSpells();
-        bool HasAuraTypeFlyingSpell();
-        bool HasAuraTypeFlyingFormSpell();
-        bool HasAuraTypeRunningFormSpell();
-        bool GetFlyingMountTimer();
-        void SetFlyingMountTimer();
-
         Item* ConvertItem(Item* item, uint32 newItemId);
 
         InventoryResult _CanTakeMoreSimilarItems(uint32 entry, uint32 count, Item* pItem, uint32* no_space_count = NULL) const;
@@ -1683,7 +1666,6 @@ class MANGOS_DLL_SPEC Player : public Unit
         void learnQuestRewardedSpells();
         void learnQuestRewardedSpells(Quest const* quest);
         void learnSpellHighRank(uint32 spellid);
-        void choseMount(uint32 *Mount, uint32 max);
 
         uint32 GetFreeTalentPoints() const { return GetUInt32Value(PLAYER_CHARACTER_POINTS1); }
         void SetFreeTalentPoints(uint32 points) { SetUInt32Value(PLAYER_CHARACTER_POINTS1,points); }
@@ -2497,7 +2479,16 @@ class MANGOS_DLL_SPEC Player : public Unit
         bool IsBot() { return (GetSession()->IsBotSession()); }
         uint16 getRole();
         void setRole(uint16 role);
+        void setRewardTalentCount (uint32 talent) { m_questRewardTalentCount = talent; }
+        uint32 getRewardTalentCount() { return m_questRewardTalentCount; }
 
+        uint32 GetTimeInArenaQueue(uint8 index) { return timeInArenaQueue[index]; }
+        void SetTimeInArenaQueue(uint8 index, uint32 t) { timeInArenaQueue[index] = t; }
+
+        uint32 GetLatestSpell() { return m_latest_spell; }
+        void SetLatestSpell(uint32 s) { m_latest_spell = s; }
+        bool GetHasLevelUp() { return m_has_level_up; }
+        void SetHasLevelUp(bool l) { m_has_level_up = l; }
 
     protected:
 
