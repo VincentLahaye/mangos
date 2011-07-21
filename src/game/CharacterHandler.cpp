@@ -790,13 +790,13 @@ void PlayerbotMgr::AddAllBots()
         }
     }
 
-    /*//nbRealPlayersCurrAlliance == nbRealPlayersCurrHorde, not a bug just calc in fact...
+    //nbRealPlayersCurrAlliance == nbRealPlayersCurrHorde, not a bug just calc in fact...
     sLog.outString("nbRealPlayersCurrAlliance %u", nbRealPlayersCurrAlliance.size());
     sLog.outString("nbRealPlayersCurrHorde %u", nbRealPlayersCurrHorde.size());
     sLog.outString("nbBotsCurrAlliance %u", nbBotsCurrAlliance);
     sLog.outString("nbBotsCurrHorde %u", nbBotsCurrHorde);
     sLog.outString("nbBotsCurrAllianceGMIsland %u", nbBotsCurrAllianceGMIsland);
-    sLog.outString("nbBotsCurrHordeGMIsland %u", nbBotsCurrHordeGMIsland);*/
+    sLog.outString("nbBotsCurrHordeGMIsland %u", nbBotsCurrHordeGMIsland);
 
 
     int nbBotsWantedAlliance =
