@@ -1015,7 +1015,7 @@ void PlayerbotAI::MoveTo(float x, float y, float z)
 
 bool PlayerbotAI::HasArrived()
 {
-    return m_bot->GetMotionMaster()->HasArrived();
+    //return m_bot->GetMotionMaster()->HasArrived();
 }
 
 void PlayerbotAI::MoveInLineOfSight(Unit *u)
@@ -1034,7 +1034,7 @@ void PlayerbotAI::MoveInLineOfSight(Unit *u)
 
 Unit* PlayerbotAI::FindPOI()
 {
-    Unit* destTarget = m_bot->GetMotionMaster()->GetDestinationTarget();
+    /*Unit* destTarget = m_bot->GetMotionMaster()->GetDestinationTarget();
     if (!destTarget)
     {
         Unit* target = m_bot->SelectRandomFriendlyTargetBetween(0, 10.0f, MAX_RANGE_MOVEMENT);
@@ -1049,7 +1049,9 @@ Unit* PlayerbotAI::FindPOI()
             return target;
         return NULL;
     }
-    return destTarget;
+    return destTarget;*/
+
+	return;
 }
 
 Unit* PlayerbotAI::FindEnemy()
