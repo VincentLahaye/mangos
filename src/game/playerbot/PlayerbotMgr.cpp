@@ -447,12 +447,12 @@ void PlayerbotMgr::LogoutPlayerBot(ObjectGuid guid)
             if (a_id==0)
                 continue;
 
-            ArenaTeam *at = sObjectMgr.GetArenaTeamById(a_id);
+            /*ArenaTeam *at = sObjectMgr.GetArenaTeamById(a_id);
             if (!at)
                 continue;
 
             if (at->DisbandNoSave(bot))
-                delete at;
+                delete at;*/
         }
 
         if (bot->GetGroup())
