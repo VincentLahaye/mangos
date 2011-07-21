@@ -469,6 +469,69 @@ bool MotionMaster::GetDestination(float &x, float &y, float &z)
     return true;
 }
 
+Unit* MotionMaster::GetDestinationTarget()
+{
+    if (empty())
+        return NULL;
+
+    if (top()->GetMovementGeneratorType()!=FOLLOW_MOTION_TYPE)
+        return NULL;
+
+    FollowMovementGenerator<Player> *mgen = static_cast<FollowMovementGenerator<Player>*>(top());
+    return mgen->GetDestinationTarget();
+}
+
+void MotionMaster::SetDestinationXYZ(float x, float y, float z)
+{
+    if (empty())
+        return;
+
+    if (m_owner->GetTypeId()!=TYPEID_PLAYER)
+        return;
+
+    if (top()->GetMovementGeneratorType()!=FOLLOW_MOTION_TYPE)
+        return;
+
+    Player* p_owner = (Player*)m_owner;
+    FollowMovementGenerator<Player> *mgen = static_cast<FollowMovementGenerator<Player>*>(top());
+    mgen->SetDestinationXYZ(*p_owner, x, y, z);
+}
+
+void MotionMaster::SetDestinationTarget(Unit* target, float offset, float angle)
+{
+    if (empty())
+        return;
+
+
+    if (m_owner->GetTypeId()!=TYPEID_PLAYER)
+        return;
+
+    if (top()->GetMovementGeneratorType()!=FOLLOW_MOTION_TYPE)
+        return;
+
+    Player* p_owner = (Player*)m_owner;
+    FollowMovementGenerator<Player> *mgen = static_cast<FollowMovementGenerator<Player>*>(top());
+    mgen->SetDestinationTarget(*p_owner, *target, offset, angle);
+}
+
+bool MotionMaster::HasArrived()
+{
+    if (empty())
+        return true;
+
+    if (m_owner->GetTypeId()!=TYPEID_PLAYER)
+        return true;
+
+    if (top()->GetMovementGeneratorType()!=FOLLOW_MOTION_TYPE)
+        return true;
+
+    return m_owner->movespline->Finalized();
+
+    /*Player* p_owner = (Player*)m_owner;
+    FollowMovementGenerator<Player> *mgen = static_cast<FollowMovementGenerator<Player>*>(top());
+    return mgen->HasArrived();*/
+}
+
 void MotionMaster::UpdateFinalDistanceToTarget(float fDistance)
 {
     if (!empty())
