@@ -509,25 +509,6 @@ void PlayerbotAI::CheckMount()
         int32 speed1 = aura->EffectBasePoints[1];
         int32 speed2 = aura->EffectBasePoints[2];
 
-        if (sWorld.getConfig(CONFIG_BOOL_ALLOW_FLYING_MOUNTS_EVERYWHERE))
-        {
-            Item* mount225 = FindMount(225);
-            Item* mount300 = FindMount(300);
-
-            if (mount300 && (speed1 > 150 || speed2 > 150))
-                UseItem(mount300);
-            else if (mount225)
-                UseItem(mount225);
-            else if (mount300)
-                UseItem(mount300);
-
-            if (!m_bot->GetAurasByType(SPELL_AURA_MOUNTED).empty())
-            {
-                m_bot->m_movementInfo.AddMovementFlag(MOVEFLAG_FLYING);
-                return;
-            }
-        }
-
         for (PlayerSpellMap::iterator itr = m_bot->GetSpellMap().begin(); itr != m_bot->GetSpellMap().end(); ++itr)
         {
             uint32 spellId = itr->first;
