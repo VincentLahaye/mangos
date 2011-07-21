@@ -327,7 +327,7 @@ bool WorldSession::Update(PacketFilter& updater)
     // The PlayerbotAI class adds to the packet queue to simulate a real player
     // since Playerbots are known to the World obj only by its master's WorldSession object
     // we need to process all master's bot's packets.
-    if (GetPlayer() && GetPlayer()->GetPlayerbotMgr()) {
+    /*if (GetPlayer() && GetPlayer()->GetPlayerbotMgr()) {
         for (PlayerBotMap::const_iterator itr = GetPlayer()->GetPlayerbotMgr()->GetPlayerBotsBegin();
                 itr != GetPlayer()->GetPlayerbotMgr()->GetPlayerBotsEnd(); ++itr)
         {
@@ -346,7 +346,7 @@ bool WorldSession::Update(PacketFilter& updater)
                 }
             }
         }
-    }
+    }*/
 
     if (m_Socket && !m_Socket->IsClosed() && m_Warden && GetPlayer() && !GetPlayer()->GetPlayerbotAI())
         m_Warden->Update();
