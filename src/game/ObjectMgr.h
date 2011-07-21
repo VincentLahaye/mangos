@@ -469,6 +469,28 @@ struct PlayerCondition
     }
 };
 
+struct BotInfoZone
+{
+    uint32 id;
+    std::string name;
+    uint32 minlevel;
+    uint32 maxlevel;
+    uint8 territory;
+};
+
+struct BotInfoPosition
+{
+    uint32 id;
+    float x;
+    float y;
+    float z;
+    uint32 mapid;
+    uint32 zoneid;
+    uint32 minlevel;
+    uint32 maxlevel;
+    uint8 territory;
+};
+
 // NPC gossip text id
 typedef UNORDERED_MAP<uint32, uint32> CacheNpcTextIdMap;
 
@@ -1207,12 +1229,17 @@ class ObjectMgr
         typedef UNORDERED_MAP<uint32, uint32> QuestAreaTriggerMap;
         typedef std::set<uint32> TavernAreaTriggerSet;
         typedef std::set<uint32> GameObjectForQuestSet;
+		typedef UNORDERED_MAP<uint32, BotInfoZone> BotInfoZoneMap;
+        typedef UNORDERED_MAP<uint32, BotInfoPosition> BotInfoPositionMap;
 
         typedef std::multimap<uint32, CreatureModelRace> CreatureModelRaceMap;
         typedef std::pair<CreatureModelRaceMap::const_iterator, CreatureModelRaceMap::const_iterator> CreatureModelRaceMapBounds;
 
         GroupMap            mGroupMap;
         ArenaTeamMap        mArenaTeamMap;
+
+		BotInfoZoneMap      mBotInfoZone;
+        BotInfoPositionMap  mBotInfoPosition;
 
         QuestAreaTriggerMap mQuestAreaTriggerMap;
         TavernAreaTriggerSet mTavernAreaTriggerSet;
