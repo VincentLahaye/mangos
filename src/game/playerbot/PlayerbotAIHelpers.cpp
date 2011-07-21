@@ -1942,7 +1942,7 @@ void PlayerbotAI::GetTaxi(ObjectGuid guid, BotTaxiNode& nodes)
 
 void PlayerbotAI::Pull()
 {
-    Group *gr = m_bot->GetGroup();
+    /*Group *gr = m_bot->GetGroup();
 
     if (gr && !IsInCombat())
     {
@@ -1950,5 +1950,5 @@ void PlayerbotAI::Pull()
             DoCombatManeuver(gr->GetAssistTarget());
         else
             DoCombatManeuver(gr->GetTankTarget());
-    }
+    }*/
 }
