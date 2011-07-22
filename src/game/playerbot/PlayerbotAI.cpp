@@ -152,7 +152,7 @@ void PlayerbotAI::ReinitAI()
             uint64 newBotposY = fields[2].GetUInt64();
 			uint64 newBotposZ = fields[3].GetUInt64();
 			uint64 newBotorie = fields[4].GetUInt64();
-			uint64 newBotmap  = fields[5].GetUInt64();
+			uint64 newBotmap = fields[5].GetUInt64();
 		}
 
 		InitBotStatsForLevel(randBotLevel);
