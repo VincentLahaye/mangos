@@ -148,15 +148,15 @@ void PlayerbotAI::ReinitAI()
         if( result )
         {
             Field *fields = result->Fetch();
-            uint64 posX = fields[1].GetUInt64();
-            uint64 posY = fields[2].GetUInt64();
-			uint64 posZ = fields[3].GetUInt64();
-			uint64 orie = fields[4].GetUInt64();
-			uint64 map  = fields[5].GetUInt64();
+            uint64 newBotposX = fields[1].GetUInt64();
+            uint64 newBotposY = fields[2].GetUInt64();
+			uint64 newBotposZ = fields[3].GetUInt64();
+			uint64 newBotorie = fields[4].GetUInt64();
+			uint64 newBotmap  = fields[5].GetUInt64();
 		}
 
 		InitBotStatsForLevel(randBotLevel);
-        m_bot->TeleportTo(map, posX, posY, posZ, 0.0f);
+        m_bot->TeleportTo(newBotmap, newBotposX, newBotposY, newBotposZ, 0.0f);
         
 		for (uint8 i = 0; i < MAX_ARENA_SLOT; ++i)
         {
