@@ -144,19 +144,16 @@ void PlayerbotAI::ReinitAI()
 		// Level aléatoire
 		int randBotLevel = int((double(rand())/RAND_MAX)*30) + 5;
 
+		InitBotStatsForLevel(randBotLevel);
+
 		QueryResult *result = CharacterDatabase.PQuery("SELECT * FROM game_tele WHERE level = '%u' ORDER BY RAND() LIMIT 1", randBotLevel);
         if( result )
         {
             Field *fields = result->Fetch();
-            uint64 newBotposX = fields[1].GetUInt64();
-            uint64 newBotposY = fields[2].GetUInt64();
-			uint64 newBotposZ = fields[3].GetUInt64();
-			uint64 newBotorie = fields[4].GetUInt64();
-			uint64 newBotmap = fields[5].GetUInt64();
-		}
 
-		InitBotStatsForLevel(randBotLevel);
-        m_bot->TeleportTo(newBotmap, newBotposX, newBotposY, newBotposZ, 0.0f);
+			// map, X, Y, Z
+			m_bot->TeleportTo(fields[5].GetUInt64(), fields[1].GetUInt64(), fields[2].GetUInt64(), fields[3].GetUInt64(), 0.0f);
+		}
         
 		for (uint8 i = 0; i < MAX_ARENA_SLOT; ++i)
         {
