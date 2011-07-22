@@ -1277,11 +1277,14 @@ ItemPrototype const* Player::BestItemBetween(ItemPrototype const* pProto1, ItemP
 
     if (bIFromSet)
     {
-        if (bIFromSet->ItemSet == pProto1->ItemSet)
+        /*if (bIFromSet->ItemSet == pProto1->ItemSet)
             return pProto1;
 
         if (bIFromSet->ItemSet == pProto2->ItemSet)
             return pProto2;
+			*/
+
+		return pProto1;
     }
 
     uint16 role = getRole();
