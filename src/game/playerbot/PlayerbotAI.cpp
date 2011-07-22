@@ -152,7 +152,7 @@ void PlayerbotAI::ReinitAI()
             Field *fields = result->Fetch();
 
 			// map, X, Y, Z
-			m_bot->TeleportTo(fields[5].GetUInt64(), fields[1].GetUInt64(), fields[2].GetUInt64(), fields[3].GetUInt64(), 0.0f);
+			m_bot->TeleportTo(fields[8].GetUInt64(), fields[1].GetUInt64(), fields[2].GetUInt64(), fields[3].GetUInt64(), 0.0f);
 		}
         
 		for (uint8 i = 0; i < MAX_ARENA_SLOT; ++i)
