@@ -1275,6 +1275,7 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder *holder)
 
 	if (pCurrChar->IsBot())
     {
+		sLog.outString( "Bot connection from CharacterHandler.cpp" );
         PlayerbotMgr *mgr = new PlayerbotMgr();
         pCurrChar->SetPlayerbotMgr(mgr);
         mgr->OnBotLogin(pCurrChar);
