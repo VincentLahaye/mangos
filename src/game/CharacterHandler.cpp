@@ -622,10 +622,11 @@ void PlayerbotMgr::AddAllBots()
 
     int nbBotsWantedAlliance = 100 - nbBotsCurrAlliance;
     int nbBotsWantedHorde = 100 - nbBotsCurrHorde;
-    if (nbBotsWantedAlliance == 0 && nbBotsCurrHorde == 0)
-        return;
 
 	sLog.outString( "Needed : %u Alliance - %u Horde", nbBotsWantedAlliance, nbBotsWantedHorde );
+
+    if (nbBotsWantedAlliance == 0 && nbBotsCurrHorde == 0)
+        return;
 
     else if (nbBotsWantedAlliance < 0 || nbBotsCurrHorde < 0)
     {
