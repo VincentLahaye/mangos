@@ -605,8 +605,8 @@ void PlayerbotMgr::AddAllBots()
         }
     }
 
-    int nbBotsWantedAlliance = 100 - nbBotsCurrAlliance;
-    int nbBotsWantedHorde = 100 - nbBotsCurrHorde;
+    int nbBotsWantedAlliance = sWorld.getConfig(CONFIG_INT32_MAX_BOT_ALLIANCE_SIDE) - nbBotsCurrAlliance;
+    int nbBotsWantedHorde = sWorld.getConfig(CONFIG_INT32_MAX_BOT_HORDE_SIDE) - nbBotsCurrHorde;
 
 	sLog.outString( "Needed : %u Alliance - %u Horde", nbBotsWantedAlliance, nbBotsWantedHorde );
 
