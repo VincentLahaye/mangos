@@ -601,8 +601,9 @@ void WorldSession::HandlePlayerLoginOpcode( WorldPacket & recv_data )
 
 void PlayerbotMgr::AddAllBots()
 {
-    if (!sWorld.getConfig(CONFIG_BOOL_BOTS_ENABLED))
-        return;
+    sLog.outString( "*******************************************************************************************" );
+	sLog.outString( "*******************************       L O A D    B O T S       ****************************" );
+	sLog.outString( "*******************************************************************************************" );
 
     uint32 accountId = 1;
     uint32 cycle = 0;
