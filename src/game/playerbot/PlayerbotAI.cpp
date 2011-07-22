@@ -59,6 +59,7 @@ class PlayerbotChatHandler : protected ChatHandler
         explicit PlayerbotChatHandler(Player* pMasterPlayer) : ChatHandler(pMasterPlayer) {}
         void sysmessage(const char *str) { SendSysMessage(str); }
         bool dropQuest(char *str) { return HandleQuestRemoveCommand(str); }
+		bool setInvisible(char *str) { return HandleGMVisibleCommand(str); }
 };
 
 PlayerbotAI::PlayerbotAI(PlayerbotMgr* const mgr, Player* const bot) : m_mgr(mgr), m_bot(bot)
@@ -119,6 +120,8 @@ PlayerbotAI::PlayerbotAI(PlayerbotMgr* const mgr, Player* const bot) : m_mgr(mgr
             m_classAI = (PlayerbotClassAI*) new PlayerbotDruidAI(m_bot, this);
             break;
     }
+
+
 }
 
 PlayerbotAI::~PlayerbotAI()
@@ -138,7 +141,8 @@ void PlayerbotAI::ReinitAI()
 
     if (m_bot == GetLeader())
     {
-        InitBotStatsForLevel(m_bot->GetLevelAtLoading());
+        //InitBotStatsForLevel(m_bot->GetLevelAtLoading());
+		InitBotStatsForLevel(30);
         m_bot->TeleportTo(orig_map, orig_x, orig_y, orig_z, 0.0f);
         for (uint8 i = 0; i < MAX_ARENA_SLOT; ++i)
         {
@@ -1223,10 +1227,12 @@ void PlayerbotAI::UpdateAI(const uint32 p_time)
 
             if (m_bot->getAttackers().empty())
             {
-                uint32 lvl = m_bot->getLevel();
+                /*uint32 lvl = m_bot->getLevel();
                 if (m_bot == GetLeader())
                     lvl = (lvl+1) > DEFAULT_MAX_LEVEL ? DEFAULT_MAX_LEVEL : (lvl+1);
-                InitBotStatsForLevel(lvl);
+                InitBotStatsForLevel(lvl);*/
+
+				InitBotStatsForLevel(30);
             }
 
             SetState(BOTSTATE_NORMAL);
@@ -1276,8 +1282,11 @@ void PlayerbotAI::UpdateAI(const uint32 p_time)
             }
 
             CheckRoles();
-            if (GetLeader()->getLevel() != m_bot->getLevel())
-                InitBotStatsForLevel(GetLeader()->getLevel());
+            /*if (GetLeader()->getLevel() != m_bot->getLevel())
+                InitBotStatsForLevel(GetLeader()->getLevel());*/
+
+			InitBotStatsForLevel(30);
+
             GetClassAI()->DoNonCombatActions();
             CheckMount();
 
