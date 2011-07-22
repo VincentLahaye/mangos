@@ -141,10 +141,24 @@ void PlayerbotAI::ReinitAI()
 
     if (m_bot == GetLeader())
     {
-        //InitBotStatsForLevel(m_bot->GetLevelAtLoading());
-		InitBotStatsForLevel(30);
-        m_bot->TeleportTo(orig_map, orig_x, orig_y, orig_z, 0.0f);
-        for (uint8 i = 0; i < MAX_ARENA_SLOT; ++i)
+		// Level aléatoire
+		int randBotLevel = int((double(rand())/RAND_MAX)*30) + 5;
+
+		QueryResult *result = CharacterDatabase.PQuery("SELECT * FROM game_tele WHERE level = '%u' ORDER BY RAND() LIMIT 1", randBotLevel);
+        if( result )
+        {
+            Field *fields = result->Fetch();
+            uint64 posX = fields[1].GetUInt64();
+            uint64 posY = fields[2].GetUInt64();
+			uint64 posZ = fields[3].GetUInt64();
+			uint64 orie = fields[4].GetUInt64();
+			uint64 map  = fields[5].GetUInt64();
+		}
+
+		InitBotStatsForLevel(randBotLevel);
+        m_bot->TeleportTo(map, posX, posY, posZ, 0.0f);
+        
+		for (uint8 i = 0; i < MAX_ARENA_SLOT; ++i)
         {
             uint32 a_id = m_bot->GetArenaTeamId(i);
             if (a_id==0)
@@ -1231,8 +1245,6 @@ void PlayerbotAI::UpdateAI(const uint32 p_time)
                 if (m_bot == GetLeader())
                     lvl = (lvl+1) > DEFAULT_MAX_LEVEL ? DEFAULT_MAX_LEVEL : (lvl+1);
                 InitBotStatsForLevel(lvl);*/
-
-				InitBotStatsForLevel(30);
             }
 
             SetState(BOTSTATE_NORMAL);
@@ -1284,8 +1296,6 @@ void PlayerbotAI::UpdateAI(const uint32 p_time)
             CheckRoles();
             /*if (GetLeader()->getLevel() != m_bot->getLevel())
                 InitBotStatsForLevel(GetLeader()->getLevel());*/
-
-			InitBotStatsForLevel(30);
 
             GetClassAI()->DoNonCombatActions();
             CheckMount();
