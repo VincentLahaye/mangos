@@ -798,12 +798,15 @@ bool Player::OtherItemsInSetAreAllowedForMe(ItemPrototype const* pProto)
 
 ItemPrototype const* Player::CheckItemSet(ItemPrototype const* bIInSlot, ItemPrototype const* bIFromSet)
 {
+	return NULL;
+
     if (!bIInSlot)
     {
         if (bIFromSet && bIFromSet->ItemSet > 0)
             return bIFromSet;
         else
             return NULL;
+
     }
 
     if (!bIFromSet)
