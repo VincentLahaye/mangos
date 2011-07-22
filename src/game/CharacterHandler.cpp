@@ -601,9 +601,7 @@ void WorldSession::HandlePlayerLoginOpcode( WorldPacket & recv_data )
 
 void PlayerbotMgr::AddAllBots()
 {
-    sLog.outString( "*******************************************************************************************" );
-	sLog.outString( "*******************************       L O A D    B O T S       ****************************" );
-	sLog.outString( "*******************************************************************************************" );
+    sLog.outString( "Loading Bots - PlayerbotMgr::AddAllBots()" );
 
     uint32 accountId = 1;
     uint32 cycle = 0;
@@ -626,6 +624,8 @@ void PlayerbotMgr::AddAllBots()
     int nbBotsWantedHorde = 100 - nbBotsCurrHorde;
     if (nbBotsWantedAlliance == 0 && nbBotsCurrHorde == 0)
         return;
+
+	sLog.outString( "Needed : %s Alliance - %S Horde", nbBotsWantedAlliance, nbBotsWantedHorde );
 
     else if (nbBotsWantedAlliance < 0 || nbBotsCurrHorde < 0)
     {
@@ -1270,6 +1270,13 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder *holder)
 
     if(!pCurrChar->IsStandState() && !pCurrChar->hasUnitState(UNIT_STAT_STUNNED))
         pCurrChar->SetStandState(UNIT_STAND_STATE_STAND);
+
+	if (pCurrChar->IsBot())
+    {
+        PlayerbotMgr *mgr = new PlayerbotMgr();
+        pCurrChar->SetPlayerbotMgr(mgr);
+        mgr->OnBotLogin(pCurrChar);
+    }
 
     m_playerLoading = false;
 
