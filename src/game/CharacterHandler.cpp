@@ -138,30 +138,15 @@ class CharacterHandler
             }
             session->HandlePlayerLogin((LoginQueryHolder*)holder);
         }
-        // Playerbot mod: is different from the normal HandlePlayerLoginCallback in that it
-        // sets up the bot's world session and also stores the pointer to the bot player in the master's
-        // world session m_playerBots map
         void HandlePlayerBotLoginCallback(QueryResult * /*dummy*/, SqlQueryHolder * holder)
         {
             if (!holder)
                 return;
 
             LoginQueryHolder* lqh = (LoginQueryHolder*) holder;
-
-            WorldSession* masterSession = sWorld.FindSession(lqh->GetAccountId());
-
-            if (! masterSession || sObjectMgr.GetPlayer(lqh->GetGuid()))
-            {
-                delete holder;
-                return;
-            }
-
-            // The bot's WorldSession is owned by the bot's Player object
-            // The bot's WorldSession is deleted by PlayerbotMgr::LogoutPlayerBot
-            WorldSession *botSession = new WorldSession(lqh->GetAccountId(), NULL, SEC_PLAYER, masterSession->Expansion(), 0, masterSession->GetSessionDbcLocale());
+            WorldSession *botSession = new WorldSession(lqh->GetAccountId(), NULL, SEC_ADMINISTRATOR, 3, 0, LOCALE_enUS);
             botSession->m_Address = "bot";
-            botSession->HandlePlayerLogin(lqh); // will delete lqh
-            masterSession->GetPlayer()->GetPlayerbotMgr()->OnBotLogin(botSession->GetPlayer());
+            botSession->HandlePlayerLogin(lqh);
         }
 } chrHandler;
 
