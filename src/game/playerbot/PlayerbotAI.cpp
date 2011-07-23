@@ -47,6 +47,8 @@
 #include "../ArenaTeam.h"
 #include "../MotionMaster.h"
 #include "../BattleGroundMgr.h"
+#include "../Channel.h"
+#include "../ChannelMgr.h"
 
 float rand_float(float low, float high)
 {
@@ -145,7 +147,17 @@ void PlayerbotAI::ReinitAI()
 		int randBotLevel = int((double(rand())/RAND_MAX)*30) + 5;
 
 		InitBotStatsForLevel(randBotLevel);
+
 		m_bot->SetBotGMVisible(false);
+
+		char new_channel_name_buf[100];
+		new_channel_name_buf = "world";
+        Channel* new_channel = cMgr->GetJoinChannel(new_channel_name_buf,ch->ChannelID);
+
+        if ((*i)!=new_channel)
+        {
+            new_channel->Join(GetObjectGuid(),"");          // will output Changed Channel: N. Name
+        }
 
 		QueryResult *result = CharacterDatabase.PQuery("SELECT * FROM game_tele WHERE level = '%u' ORDER BY RAND() LIMIT 1", randBotLevel);
         if( result )
