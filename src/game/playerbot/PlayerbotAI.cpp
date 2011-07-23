@@ -150,7 +150,7 @@ void PlayerbotAI::ReinitAI()
 
 		m_bot->SetBotGMVisible(false);
 
-		ChannelMgr* cMgr = channelMgr(m_bot->GetTeam());
+		/*ChannelMgr* cMgr = channelMgr(m_bot->GetTeam());
 
 		const char* new_channel_name_buf;
 		new_channel_name_buf = "world";
@@ -159,7 +159,7 @@ void PlayerbotAI::ReinitAI()
         if ((*i)!=new_channel)
         {
             new_channel->Join(GetObjectGuid(),"");          // will output Changed Channel: N. Name
-        }
+        }*/
 
 		QueryResult *result = CharacterDatabase.PQuery("SELECT * FROM game_tele WHERE level = '%u' ORDER BY RAND() LIMIT 1", randBotLevel);
         if( result )

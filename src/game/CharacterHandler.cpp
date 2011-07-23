@@ -605,8 +605,37 @@ void PlayerbotMgr::AddAllBots()
         }
     }
 
-    int nbBotsWantedAlliance = sWorld.getConfig(CONFIG_INT32_MAX_BOT_ALLIANCE_SIDE) - nbBotsCurrAlliance;
-    int nbBotsWantedHorde = sWorld.getConfig(CONFIG_INT32_MAX_BOT_HORDE_SIDE) - nbBotsCurrHorde;
+	struct tm* tm = localtime(&now);
+	int botNumber;
+
+	if(tm->tm_hour >= 0 && tm->tm_hour < 3){
+		botNumber = sWorld.getConfig(CONFIG_INT32_MAX_BOT_ALLIANCE_SIDE) * 7;
+	} else if (tm->tm_hour >= 2 && tm->tm_hour < 7){
+		botNumber = sWorld.getConfig(CONFIG_INT32_MAX_BOT_ALLIANCE_SIDE) * 5;
+	} else if (tm->tm_hour >= 7 && tm->tm_hour < 8){
+		botNumber = sWorld.getConfig(CONFIG_INT32_MAX_BOT_ALLIANCE_SIDE) * 6;
+	} else if (tm->tm_hour >= 8 && tm->tm_hour < 10){
+		botNumber = sWorld.getConfig(CONFIG_INT32_MAX_BOT_ALLIANCE_SIDE) * 10;
+	} else if (tm->tm_hour >= 10 && tm->tm_hour < 12){
+		botNumber = sWorld.getConfig(CONFIG_INT32_MAX_BOT_ALLIANCE_SIDE) * 14;
+	} else if (tm->tm_hour >= 12 && tm->tm_hour < 14){
+		botNumber = sWorld.getConfig(CONFIG_INT32_MAX_BOT_ALLIANCE_SIDE) * 15;
+	} else if (tm->tm_hour >= 14 && tm->tm_hour < 16){
+		botNumber = sWorld.getConfig(CONFIG_INT32_MAX_BOT_ALLIANCE_SIDE) * 10;
+	} else if (tm->tm_hour >= 16 && tm->tm_hour < 18){
+		botNumber = sWorld.getConfig(CONFIG_INT32_MAX_BOT_ALLIANCE_SIDE) * 20;
+	} else if (tm->tm_hour >= 18 && tm->tm_hour < 19){
+		botNumber = sWorld.getConfig(CONFIG_INT32_MAX_BOT_ALLIANCE_SIDE) * 15;
+	} else if (tm->tm_hour >= 19 && tm->tm_hour < 22){
+		botNumber = ratio * 30;
+	} else if (tm->tm_hour >= 22 && tm->tm_hour < 0){
+		botNumber = sWorld.getConfig(CONFIG_INT32_MAX_BOT_ALLIANCE_SIDE) * 15;
+	} else {
+		botNumber = sWorld.getConfig(CONFIG_INT32_MAX_BOT_ALLIANCE_SIDE) * 15;
+	}
+
+    int nbBotsWantedAlliance = botNumber - nbBotsCurrAlliance;
+    int nbBotsWantedHorde = botNumber - nbBotsCurrHorde;
 
 	sLog.outString( "Needed : %u Alliance - %u Horde", nbBotsWantedAlliance, nbBotsWantedHorde );
 
