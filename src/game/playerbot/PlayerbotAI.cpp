@@ -142,7 +142,7 @@ void PlayerbotAI::ReinitAI()
         m_bot->ResurrectPlayer(100.0f);
 
 	// Level aléatoire
-	int randBotLevel = int((double(rand())/RAND_MAX)*30) + 5;
+	int randBotLevel = int((double(rand())/RAND_MAX)*30) + 10;
 
 	InitBotStatsForLevel(randBotLevel);
 

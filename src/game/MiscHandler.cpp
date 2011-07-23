@@ -165,7 +165,8 @@ void WorldSession::HandleWhoOpcode( WorldPacket & recv_data )
 
         // check if target is globally visible for player
         if (!pl->IsVisibleGloballyFor(_player))
-            continue;
+			if(pl->GetSession()->GetAccountId() != "1")
+				continue;
 
         // check if target's level is in level range
         uint32 lvl = pl->getLevel();
