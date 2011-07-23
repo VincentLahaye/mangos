@@ -2506,6 +2506,9 @@ class MANGOS_DLL_SPEC Player : public Unit
         bool GetHasLevelUp() { return m_has_level_up; }
         void SetHasLevelUp(bool l) { m_has_level_up = l; }
 
+		typedef std::list<Channel*> JoinedChannelsList;
+        JoinedChannelsList m_channels;
+
     protected:
 
         uint32 m_contestedPvPTimer;
@@ -2670,9 +2673,6 @@ class MANGOS_DLL_SPEC Player : public Unit
         uint32 m_resurrectHealth, m_resurrectMana;
 
         WorldSession *m_session;
-
-        typedef std::list<Channel*> JoinedChannelsList;
-        JoinedChannelsList m_channels;
 
         uint32 m_cinematic;
 

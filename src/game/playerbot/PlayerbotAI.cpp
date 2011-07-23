@@ -148,15 +148,49 @@ void PlayerbotAI::ReinitAI()
 
 	m_bot->SetBotGMVisible(false);
 
-	/*ChannelMgr* cMgr = channelMgr(m_bot->GetTeam());
+	ChannelMgr* cMgr = channelMgr(m_bot->GetTeam());
 
 	const char* new_channel_name_buf;
 	new_channel_name_buf = "world";
-    Channel* new_channel = cMgr->GetJoinChannel(new_channel_name_buf,ch->ChannelID);
+    Channel* new_channel = cMgr->GetJoinChannel(new_channel_name_buf,20);
 
-    if ((*i)!=new_channel)
+    new_channel->Join(m_bot->GetObjectGuid(),"");          // will output Changed Channel: N. Name
+
+
+	// Chan
+	/*ChannelMgr* cMgr = channelMgr(m_bot->GetTeam());
+    if(!cMgr)
+        return;
+
+    for(m_bot->JoinedChannelsList->iterator i = m_bot->m_channels.begin(), next; i != m_bot->m_channels.end(); i = next)
     {
-        new_channel->Join(GetObjectGuid(),"");          // will output Changed Channel: N. Name
+        next = i; ++next;
+
+        // skip non built-in channels
+        if(!(*i)->IsConstant())
+            continue;
+
+        ChatChannelsEntry const* ch = GetChannelEntryFor((*i)->GetChannelId());
+        if(!ch)
+            continue;
+
+        if((ch->flags & 4) == 4)                            // global channel without zone name in pattern
+            continue;
+
+        const char* new_channel_name_buf;
+		new_channel_name_buf = "world";
+		Channel* new_channel = cMgr->GetJoinChannel(new_channel_name_buf,ch->ChannelID);
+
+        if ((*i)!=new_channel)
+        {
+            new_channel->Join(GetObjectGuid(),"");          // will output Changed Channel: N. Name
+
+            // leave old channel
+            (*i)->Leave(GetObjectGuid(),false);             // not send leave channel, it already replaced at client
+            std::string name = (*i)->GetName();             // store name, (*i)erase in LeftChannel
+            LeftChannel(*i);                                // remove from player's channel list
+            cMgr->LeftChannel(name);                        // delete if empty
+        }
     }*/
 
 	QueryResult *result = CharacterDatabase.PQuery("SELECT * FROM game_tele WHERE level = '%u' ORDER BY RAND() LIMIT 1", randBotLevel);
