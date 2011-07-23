@@ -148,7 +148,7 @@ void WorldSession::HandleWhoOpcode( WorldPacket & recv_data )
     {
         Player* pl = itr->second;
 
-        if (security == SEC_PLAYER)
+        /*if (security == SEC_PLAYER)
         {
             // player can see member of other team only if CONFIG_BOOL_ALLOW_TWO_SIDE_WHO_LIST
             if (pl->GetTeam() != team && !allowTwoSideWhoList )
@@ -157,7 +157,7 @@ void WorldSession::HandleWhoOpcode( WorldPacket & recv_data )
             // player can see MODERATOR, GAME MASTER, ADMINISTRATOR only if CONFIG_GM_IN_WHO_LIST
             //if (pl->GetSession()->GetSecurity() > gmLevelInWhoList)
             //    continue;
-        }
+        }*/
 
         // do not process players which are not in world
         if (!pl->IsInWorld())
