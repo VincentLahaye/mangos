@@ -2536,6 +2536,9 @@ void Player::SetBotGMVisible(bool on)
     {
         SetVisibility(VISIBILITY_OFF);
     }
+
+	SetAcceptWhispers(true);
+    SetGameMaster(false);
 }
 
 bool Player::IsGroupVisibleFor(Player* p) const
