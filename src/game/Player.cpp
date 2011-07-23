@@ -2526,6 +2526,18 @@ void Player::SetGMVisible(bool on)
     }
 }
 
+void Player::SetBotGMVisible(bool on)
+{
+    if(on)
+    {
+        SetVisibility(VISIBILITY_ON);
+    }
+    else
+    {
+        SetVisibility(VISIBILITY_OFF);
+    }
+}
+
 bool Player::IsGroupVisibleFor(Player* p) const
 {
     switch(sWorld.getConfig(CONFIG_UINT32_GROUP_VISIBILITY))
