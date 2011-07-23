@@ -141,43 +141,43 @@ void PlayerbotAI::ReinitAI()
     if (m_bot->isDead())
         m_bot->ResurrectPlayer(100.0f);
 
-    if (m_bot == GetLeader())
+	// Level aléatoire
+	int randBotLevel = int((double(rand())/RAND_MAX)*30) + 5;
+
+	InitBotStatsForLevel(randBotLevel);
+
+	m_bot->SetBotGMVisible(false);
+
+	/*ChannelMgr* cMgr = channelMgr(m_bot->GetTeam());
+
+	const char* new_channel_name_buf;
+	new_channel_name_buf = "world";
+    Channel* new_channel = cMgr->GetJoinChannel(new_channel_name_buf,ch->ChannelID);
+
+    if ((*i)!=new_channel)
     {
-		// Level aléatoire
-		int randBotLevel = int((double(rand())/RAND_MAX)*30) + 5;
+        new_channel->Join(GetObjectGuid(),"");          // will output Changed Channel: N. Name
+    }*/
 
-		InitBotStatsForLevel(randBotLevel);
+	QueryResult *result = CharacterDatabase.PQuery("SELECT * FROM game_tele WHERE level = '%u' ORDER BY RAND() LIMIT 1", randBotLevel);
+    if( result )
+    {
+        Field *fields = result->Fetch();
 
-		m_bot->SetBotGMVisible(false);
+		Player::SavePositionInDB(m_bot->GetObjectGuid(), 
+		fields[5].GetUInt32(),
+        fields[1].GetFloat(),
+        fields[2].GetFloat(),
+        fields[3].GetFloat(),
+        fields[4].GetFloat(),
+        fields[8].GetFloat());
 
-		/*ChannelMgr* cMgr = channelMgr(m_bot->GetTeam());
+		// map, X, Y, Z
+		m_bot->TeleportTo(fields[5].GetUInt32(), fields[1].GetFloat(), fields[2].GetFloat(), fields[3].GetFloat(), fields[4].GetFloat());
+	}
 
-		const char* new_channel_name_buf;
-		new_channel_name_buf = "world";
-        Channel* new_channel = cMgr->GetJoinChannel(new_channel_name_buf,ch->ChannelID);
-
-        if ((*i)!=new_channel)
-        {
-            new_channel->Join(GetObjectGuid(),"");          // will output Changed Channel: N. Name
-        }*/
-
-		QueryResult *result = CharacterDatabase.PQuery("SELECT * FROM game_tele WHERE level = '%u' ORDER BY RAND() LIMIT 1", randBotLevel);
-        if( result )
-        {
-            Field *fields = result->Fetch();
-
-			Player::SavePositionInDB(m_bot->GetObjectGuid(), 
-			fields[5].GetUInt32(),
-            fields[1].GetFloat(),
-            fields[2].GetFloat(),
-            fields[3].GetFloat(),
-            fields[4].GetFloat(),
-            fields[8].GetFloat());
-
-			// map, X, Y, Z
-			m_bot->TeleportTo(fields[5].GetUInt32(), fields[1].GetFloat(), fields[2].GetFloat(), fields[3].GetFloat(), fields[4].GetFloat());
-		}
-        
+    if (m_bot == GetLeader())
+    {   
 		for (uint8 i = 0; i < MAX_ARENA_SLOT; ++i)
         {
             uint32 a_id = m_bot->GetArenaTeamId(i);

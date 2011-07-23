@@ -587,8 +587,6 @@ void WorldSession::HandlePlayerLoginOpcode( WorldPacket & recv_data )
 
 void PlayerbotMgr::AddAllBots()
 {
-    sLog.outString( "Loading Bots - PlayerbotMgr::AddAllBots()" );
-
     uint32 accountId = 1;
     uint32 cycle = 0;
     int nbBotsCurrAlliance = 0;
@@ -643,13 +641,12 @@ void PlayerbotMgr::AddAllBots()
     int nbBotsWantedAlliance = botNumber - nbBotsCurrAlliance;
     int nbBotsWantedHorde = botNumber - nbBotsCurrHorde;
 
-	sLog.outString( "Needed : %u Alliance - %u Horde", nbBotsWantedAlliance, nbBotsWantedHorde );
-
     if (nbBotsWantedAlliance == 0 && nbBotsCurrHorde == 0)
         return;
 
     else if (nbBotsWantedAlliance < 0 || nbBotsCurrHorde < 0)
     {
+		sLog.outString( "Too many bots : deletion." );
         for(HashMapHolder<Player>::MapType::const_iterator itr = m.begin(); itr != m.end() || nbBotsWantedAlliance < 0 || nbBotsCurrHorde < 0; ++itr)
         {
             Player* bot = itr->second;
@@ -672,6 +669,7 @@ void PlayerbotMgr::AddAllBots()
     }
     else
     {
+		sLog.outString( "Needed : %u Alliance - %u Horde", nbBotsWantedAlliance, nbBotsWantedHorde );
 
         QueryResult *result = CharacterDatabase.PQuery("SELECT guid, race FROM characters WHERE account = '%u' ORDER BY RAND()", accountId);
         if( result )
