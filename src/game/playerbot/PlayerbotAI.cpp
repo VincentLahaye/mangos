@@ -150,7 +150,7 @@ void PlayerbotAI::ReinitAI()
 
 		m_bot->SetBotGMVisible(false);
 
-		ChannelMgr* cMgr = channelMgr(GetTeam());
+		ChannelMgr* cMgr = channelMgr(m_bot->GetTeam());
 
 		const char* new_channel_name_buf;
 		new_channel_name_buf = "world";
