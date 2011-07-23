@@ -5174,6 +5174,16 @@ void Player::UpdateLocalChannels(uint32 newZone )
     DEBUG_LOG("Player: channels cleaned up!");
 }
 
+int Player::GetChannelNumber(){
+	int channelCountNumber = 0;
+
+	for(JoinedChannelsList::iterator i = m_channels.begin(); i != m_channels.end(); ++i ){
+		channelCountNumber++;
+	}
+
+	return channelCountNumber;
+}
+
 void Player::LeaveLFGChannel()
 {
     for(JoinedChannelsList::iterator i = m_channels.begin(); i != m_channels.end(); ++i )

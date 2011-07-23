@@ -152,7 +152,7 @@ void PlayerbotAI::ReinitAI()
 
 	const char* new_channel_name_buf;
 	new_channel_name_buf = "world";
-    Channel* new_channel = cMgr->GetJoinChannel(new_channel_name_buf,20);
+    Channel* new_channel = cMgr->GetJoinChannel(new_channel_name_buf,m_bot->GetChannelNumber());
 
     new_channel->Join(m_bot->GetObjectGuid(),"");          // will output Changed Channel: N. Name
 

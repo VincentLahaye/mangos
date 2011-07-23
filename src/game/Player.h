@@ -1361,6 +1361,8 @@ class MANGOS_DLL_SPEC Player : public Unit
 
         void TakeExtendedCost(uint32 extendedCostId, uint32 count);
 
+		int GetChannelNumber();
+
         uint32 GetMaxKeyringSize() const { return KEYRING_SLOT_END-KEYRING_SLOT_START; }
         void SendEquipError( InventoryResult msg, Item* pItem, Item *pItem2 = NULL, uint32 itemid = 0 ) const;
         void SendBuyError( BuyResult msg, Creature* pCreature, uint32 item, uint32 param );
