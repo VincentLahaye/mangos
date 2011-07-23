@@ -646,7 +646,7 @@ void PlayerbotMgr::AddAllBots()
 
     else if (nbBotsWantedAlliance < 0 || nbBotsCurrHorde < 0)
     {
-		sLog.outString( "Too many bots : deletion." );
+		//sLog.outString( "Too many bots : deletion." );
         for(HashMapHolder<Player>::MapType::const_iterator itr = m.begin(); itr != m.end() || nbBotsWantedAlliance < 0 || nbBotsCurrHorde < 0; ++itr)
         {
             Player* bot = itr->second;
@@ -669,7 +669,7 @@ void PlayerbotMgr::AddAllBots()
     }
     else
     {
-		sLog.outString( "Needed : %u Alliance - %u Horde", nbBotsWantedAlliance, nbBotsWantedHorde );
+		//sLog.outString( "Needed : %u Alliance - %u Horde", nbBotsWantedAlliance, nbBotsWantedHorde );
 
         QueryResult *result = CharacterDatabase.PQuery("SELECT guid, race FROM characters WHERE account = '%u' ORDER BY RAND()", accountId);
         if( result )
