@@ -150,12 +150,8 @@ void PlayerbotAI::ReinitAI()
 
 		m_bot->SetBotGMVisible(false);
 
-		char new_channel_name_buf[100];
-		new_channel_name_buf[0] = new char(w);
-		new_channel_name_buf[1] = new char(o);
-		new_channel_name_buf[2] = new char(r);
-		new_channel_name_buf[3] = new char(l);
-		new_channel_name_buf[4] = new char(d);
+		const char* new_channel_name_buf;
+		new_channel_name_buf = "world";
         Channel* new_channel = cMgr->GetJoinChannel(new_channel_name_buf,ch->ChannelID);
 
         if ((*i)!=new_channel)
