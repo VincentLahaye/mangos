@@ -1054,6 +1054,7 @@ void PlayerbotAI::MoveTo(float x, float y, float z)
 bool PlayerbotAI::HasArrived()
 {
     //return m_bot->GetMotionMaster()->HasArrived();
+	return true;
 }
 
 void PlayerbotAI::MoveInLineOfSight(Unit *u)

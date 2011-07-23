@@ -38,6 +38,7 @@
 #include "Util.h"
 #include "ArenaTeam.h"
 #include "Language.h"
+#include <time.h>
 
 // Playerbot mod:
 #include "playerbot/PlayerbotMgr.h"
@@ -605,7 +606,12 @@ void PlayerbotMgr::AddAllBots()
         }
     }
 
-	struct tm* tm = localtime(&now);
+	time_t timestamp;
+    struct tm* tm;
+	
+	timestamp = time(NULL);
+    tm = localtime(&timestamp);
+
 	int botNumber;
 
 	if(tm->tm_hour >= 0 && tm->tm_hour < 3){
@@ -627,7 +633,7 @@ void PlayerbotMgr::AddAllBots()
 	} else if (tm->tm_hour >= 18 && tm->tm_hour < 19){
 		botNumber = sWorld.getConfig(CONFIG_INT32_MAX_BOT_ALLIANCE_SIDE) * 15;
 	} else if (tm->tm_hour >= 19 && tm->tm_hour < 22){
-		botNumber = ratio * 30;
+		botNumber = sWorld.getConfig(CONFIG_INT32_MAX_BOT_ALLIANCE_SIDE) * 30;
 	} else if (tm->tm_hour >= 22 && tm->tm_hour < 0){
 		botNumber = sWorld.getConfig(CONFIG_INT32_MAX_BOT_ALLIANCE_SIDE) * 15;
 	} else {
