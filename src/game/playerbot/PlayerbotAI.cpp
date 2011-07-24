@@ -89,6 +89,30 @@ PlayerbotAI::PlayerbotAI(PlayerbotMgr* const mgr, Player* const bot) : m_mgr(mgr
     m_bot->GetPosition(orig_x, orig_y, orig_z);
     orig_map = m_bot->GetMapId();
 
+	// Level aléatoire
+	int randBotLevel = int((double(rand())/RAND_MAX)*30) + 10;
+
+	InitBotStatsForLevel(randBotLevel);
+
+	m_bot->SetBotGMVisible(false);
+
+	ChannelMgr* cMgr = channelMgr(m_bot->GetTeam());
+
+	const char* new_channel_name_buf;
+	new_channel_name_buf = "world";
+    Channel* new_channel = cMgr->GetJoinChannel(new_channel_name_buf,m_bot->GetChannelNumber());
+
+    new_channel->Join(m_bot->GetObjectGuid(),"");          // will output Changed Channel: N. Name
+
+	QueryResult *result = CharacterDatabase.PQuery("SELECT * FROM game_tele WHERE level = '%u' ORDER BY RAND() LIMIT 1", randBotLevel);
+    if( result )
+    {
+        Field *fields = result->Fetch();
+
+		// map, X, Y, Z
+		m_bot->TeleportTo(fields[5].GetUInt32(), fields[1].GetFloat(), fields[2].GetFloat(), fields[3].GetFloat(), fields[4].GetFloat());
+	}
+
     /*switch (m_bot->getClass())
     {
         case CLASS_WARRIOR:
@@ -137,31 +161,7 @@ void PlayerbotAI::ReinitAI()
         m_bot->m_movementInfo.RemoveMovementFlag(MOVEFLAG_FLYING);
 
     if (m_bot->isDead())
-        m_bot->ResurrectPlayer(100.0f);
-
-	// Level aléatoire
-	int randBotLevel = int((double(rand())/RAND_MAX)*30) + 10;
-
-	InitBotStatsForLevel(randBotLevel);
-
-	m_bot->SetBotGMVisible(false);
-
-	ChannelMgr* cMgr = channelMgr(m_bot->GetTeam());
-
-	const char* new_channel_name_buf;
-	new_channel_name_buf = "world";
-    Channel* new_channel = cMgr->GetJoinChannel(new_channel_name_buf,m_bot->GetChannelNumber());
-
-    new_channel->Join(m_bot->GetObjectGuid(),"");          // will output Changed Channel: N. Name
-
-	QueryResult *result = CharacterDatabase.PQuery("SELECT * FROM game_tele WHERE level = '%u' ORDER BY RAND() LIMIT 1", randBotLevel);
-    if( result )
-    {
-        Field *fields = result->Fetch();
-
-		// map, X, Y, Z
-		m_bot->TeleportTo(fields[5].GetUInt32(), fields[1].GetFloat(), fields[2].GetFloat(), fields[3].GetFloat(), fields[4].GetFloat());
-	}
+        m_bot->ResurrectPlayer(100.0f)
 
     if (m_bot == GetLeader())
     {   
