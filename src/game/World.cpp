@@ -935,8 +935,7 @@ void World::LoadConfigSettings(bool reload)
         enableLOS, enableHeight, getConfig(CONFIG_BOOL_VMAP_INDOOR_CHECK) ? 1 : 0);
     sLog.outString( "WORLD: VMap data directory is: %svmaps",m_dataPath.c_str());
 
-	setConfig(CONFIG_INT32_MAX_BOT_ALLIANCE_SIDE,           sConfig.GetIntDefault("PlayerBot.MaxBots.AllianceSide", 100));
-    setConfig(CONFIG_INT32_MAX_BOT_HORDE_SIDE,              sConfig.GetIntDefault("PlayerBot.MaxBots.HordeSide", 100));
+	setConfig(CONFIG_INT32_RATIO_BOTS,           sConfig.GetIntDefault("PlayerBotAI.Ratio", 1));
 }
 
 /// Initialize the World
@@ -1654,8 +1653,9 @@ void World::Update(uint32 diff)
 
 	if (m_NextPlayerBotCheck < time(0))
     {
+		int roundTime = int((double(rand())/RAND_MAX)*60)+60;
         PlayerbotMgr::AddAllBots();
-        m_NextPlayerBotCheck = time(0) + 5;
+        m_NextPlayerBotCheck = time(0) + roundTime;
     }
 
     // And last, but not least handle the issued cli commands

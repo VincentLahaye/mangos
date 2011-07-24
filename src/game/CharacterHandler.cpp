@@ -613,40 +613,39 @@ void PlayerbotMgr::AddAllBots()
 	int botNumber;
 
 	if(tm->tm_hour >= 0 && tm->tm_hour < 3){
-		botNumber = sWorld.getConfig(CONFIG_INT32_MAX_BOT_ALLIANCE_SIDE) * 7;
+		botNumber = sWorld.getConfig(CONFIG_INT32_RATIO_BOTS) * 7;
 	} else if (tm->tm_hour >= 2 && tm->tm_hour < 7){
-		botNumber = sWorld.getConfig(CONFIG_INT32_MAX_BOT_ALLIANCE_SIDE) * 5;
+		botNumber = sWorld.getConfig(CONFIG_INT32_RATIO_BOTS) * 5;
 	} else if (tm->tm_hour >= 7 && tm->tm_hour < 8){
-		botNumber = sWorld.getConfig(CONFIG_INT32_MAX_BOT_ALLIANCE_SIDE) * 6;
+		botNumber = sWorld.getConfig(CONFIG_INT32_RATIO_BOTS) * 6;
 	} else if (tm->tm_hour >= 8 && tm->tm_hour < 10){
-		botNumber = sWorld.getConfig(CONFIG_INT32_MAX_BOT_ALLIANCE_SIDE) * 10;
+		botNumber = sWorld.getConfig(CONFIG_INT32_RATIO_BOTS) * 10;
 	} else if (tm->tm_hour >= 10 && tm->tm_hour < 12){
-		botNumber = sWorld.getConfig(CONFIG_INT32_MAX_BOT_ALLIANCE_SIDE) * 14;
+		botNumber = sWorld.getConfig(CONFIG_INT32_RATIO_BOTS) * 14;
 	} else if (tm->tm_hour >= 12 && tm->tm_hour < 14){
-		botNumber = sWorld.getConfig(CONFIG_INT32_MAX_BOT_ALLIANCE_SIDE) * 15;
+		botNumber = sWorld.getConfig(CONFIG_INT32_RATIO_BOTS) * 15;
 	} else if (tm->tm_hour >= 14 && tm->tm_hour < 16){
-		botNumber = sWorld.getConfig(CONFIG_INT32_MAX_BOT_ALLIANCE_SIDE) * 10;
+		botNumber = sWorld.getConfig(CONFIG_INT32_RATIO_BOTS) * 10;
 	} else if (tm->tm_hour >= 16 && tm->tm_hour < 18){
-		botNumber = sWorld.getConfig(CONFIG_INT32_MAX_BOT_ALLIANCE_SIDE) * 20;
+		botNumber = sWorld.getConfig(CONFIG_INT32_RATIO_BOTS) * 20;
 	} else if (tm->tm_hour >= 18 && tm->tm_hour < 19){
-		botNumber = sWorld.getConfig(CONFIG_INT32_MAX_BOT_ALLIANCE_SIDE) * 15;
+		botNumber = sWorld.getConfig(CONFIG_INT32_RATIO_BOTS) * 15;
 	} else if (tm->tm_hour >= 19 && tm->tm_hour < 22){
-		botNumber = sWorld.getConfig(CONFIG_INT32_MAX_BOT_ALLIANCE_SIDE) * 30;
+		botNumber = sWorld.getConfig(CONFIG_INT32_RATIO_BOTS) * 20;
 	} else if (tm->tm_hour >= 22 && tm->tm_hour < 0){
-		botNumber = sWorld.getConfig(CONFIG_INT32_MAX_BOT_ALLIANCE_SIDE) * 15;
+		botNumber = sWorld.getConfig(CONFIG_INT32_RATIO_BOTS) * 15;
 	} else {
-		botNumber = sWorld.getConfig(CONFIG_INT32_MAX_BOT_ALLIANCE_SIDE) * 15;
+		botNumber = sWorld.getConfig(CONFIG_INT32_RATIO_BOTS) * 15;
 	}
 
-    int nbBotsWantedAlliance = botNumber - nbBotsCurrAlliance;
-    int nbBotsWantedHorde = botNumber - nbBotsCurrHorde;
+    int nbBotsWantedAlliance = (botNumber/2) - nbBotsCurrAlliance;
+    int nbBotsWantedHorde = (botNumber/2) - nbBotsCurrHorde;
 
     if (nbBotsWantedAlliance == 0 && nbBotsCurrHorde == 0)
         return;
 
     else if (nbBotsWantedAlliance < 0 || nbBotsCurrHorde < 0)
     {
-		//sLog.outString( "Too many bots : deletion." );
         for(HashMapHolder<Player>::MapType::const_iterator itr = m.begin(); itr != m.end() || nbBotsWantedAlliance < 0 || nbBotsCurrHorde < 0; ++itr)
         {
             Player* bot = itr->second;
@@ -669,73 +668,69 @@ void PlayerbotMgr::AddAllBots()
     }
     else
     {
-		//sLog.outString( "Needed : %u Alliance - %u Horde", nbBotsWantedAlliance, nbBotsWantedHorde );
-
-        QueryResult *result = CharacterDatabase.PQuery("SELECT guid, race FROM characters WHERE account = '%u' ORDER BY RAND()", accountId);
+		QueryResult *result = CharacterDatabase.PQuery("SELECT guid, race FROM characters WHERE account = '%u' ORDER BY RAND() LIMIT 1", accountId);
         if( result )
         {
             int itrAlliance = 0;
             int itrHorde = 0;
-            do
+
+            Field *fields = result->Fetch();
+            uint64 guid = fields[0].GetUInt64();
+            uint8 race = fields[1].GetUInt8();
+
+            if (guid == 0)
+                return;
+
+            // has bot already been added?
+            if (sObjectMgr.GetPlayer(guid))
+                return;
+
+            switch (race)
             {
-                Field *fields = result->Fetch();
-                uint64 guid = fields[0].GetUInt64();
-                uint8 race = fields[1].GetUInt8();
-
-                if (guid == 0)
-                    continue;
-
-                // has bot already been added?
-                if (sObjectMgr.GetPlayer(guid))
-                    continue;
-
-                switch (race)
+                case RACE_HUMAN:
+                case RACE_DWARF:
+                case RACE_NIGHTELF:
+                case RACE_GNOME:
+                case RACE_DRAENEI:
                 {
-                    case RACE_HUMAN:
-                    case RACE_DWARF:
-                    case RACE_NIGHTELF:
-                    case RACE_GNOME:
-                    case RACE_DRAENEI:
+                    if (itrAlliance < nbBotsWantedAlliance)
                     {
-                        if (itrAlliance < nbBotsWantedAlliance)
+                        itrAlliance++;
+                        LoginQueryHolder *holder = new LoginQueryHolder(accountId, guid);
+                        if(!holder->Initialize())
                         {
-                            itrAlliance++;
-                            LoginQueryHolder *holder = new LoginQueryHolder(accountId, guid);
-                            if(!holder->Initialize())
-                            {
-                                delete holder; // delete all unprocessed queries
-                                continue;
-                            }
-                            CharacterDatabase.DelayQueryHolder(&chrHandler, &CharacterHandler::HandlePlayerBotLoginCallback, holder);
-                            cycle++;
+                            delete holder; // delete all unprocessed queries
+                            return;
                         }
-                        break;
+                        CharacterDatabase.DelayQueryHolder(&chrHandler, &CharacterHandler::HandlePlayerBotLoginCallback, holder);
+                        cycle++;
                     }
-                    case RACE_ORC:
-                    case RACE_UNDEAD:
-                    case RACE_TAUREN:
-                    case RACE_TROLL:
-                    case RACE_BLOODELF:
-                    {
-                        if (itrHorde < nbBotsWantedHorde)
-                        {
-                            itrHorde++;
-                            LoginQueryHolder *holder = new LoginQueryHolder(accountId, guid);
-                            if(!holder->Initialize())
-                            {
-                                delete holder; // delete all unprocessed queries
-                                continue;
-                            }
-                            CharacterDatabase.DelayQueryHolder(&chrHandler, &CharacterHandler::HandlePlayerBotLoginCallback, holder);
-                            cycle++;
-                        }
-                        break;
-                    }
-                    default:
-                        break;
+                    break;
                 }
+                case RACE_ORC:
+                case RACE_UNDEAD:
+                case RACE_TAUREN:
+                case RACE_TROLL:
+                case RACE_BLOODELF:
+                {
+                    if (itrHorde < nbBotsWantedHorde)
+                    {
+                        itrHorde++;
+                        LoginQueryHolder *holder = new LoginQueryHolder(accountId, guid);
+                        if(!holder->Initialize())
+                        {
+                            delete holder; // delete all unprocessed queries
+                            return;
+                        }
+                        CharacterDatabase.DelayQueryHolder(&chrHandler, &CharacterHandler::HandlePlayerBotLoginCallback, holder);
+                        cycle++;
+                    }
+                    break;
+                }
+                default:
+                    break;
             }
-            while (result->NextRow() && cycle < 6 && (itrAlliance < nbBotsWantedAlliance || itrHorde < nbBotsWantedHorde));
+
             delete result;
         }
     }

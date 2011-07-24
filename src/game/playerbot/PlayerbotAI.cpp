@@ -89,7 +89,7 @@ PlayerbotAI::PlayerbotAI(PlayerbotMgr* const mgr, Player* const bot) : m_mgr(mgr
     m_bot->GetPosition(orig_x, orig_y, orig_z);
     orig_map = m_bot->GetMapId();
 
-    switch (m_bot->getClass())
+    /*switch (m_bot->getClass())
     {
         case CLASS_WARRIOR:
             m_classAI = (PlayerbotClassAI*) new PlayerbotWarriorAI(m_bot, this);
@@ -121,14 +121,12 @@ PlayerbotAI::PlayerbotAI(PlayerbotMgr* const mgr, Player* const bot) : m_mgr(mgr
         case CLASS_DRUID:
             m_classAI = (PlayerbotClassAI*) new PlayerbotDruidAI(m_bot, this);
             break;
-    }
-
-
+    }*/
 }
 
 PlayerbotAI::~PlayerbotAI()
 {
-    delete m_classAI;
+    //delete m_classAI;
 }
 
 void PlayerbotAI::ReinitAI()
@@ -156,55 +154,10 @@ void PlayerbotAI::ReinitAI()
 
     new_channel->Join(m_bot->GetObjectGuid(),"");          // will output Changed Channel: N. Name
 
-
-	// Chan
-	/*ChannelMgr* cMgr = channelMgr(m_bot->GetTeam());
-    if(!cMgr)
-        return;
-
-    for(m_bot->JoinedChannelsList->iterator i = m_bot->m_channels.begin(), next; i != m_bot->m_channels.end(); i = next)
-    {
-        next = i; ++next;
-
-        // skip non built-in channels
-        if(!(*i)->IsConstant())
-            continue;
-
-        ChatChannelsEntry const* ch = GetChannelEntryFor((*i)->GetChannelId());
-        if(!ch)
-            continue;
-
-        if((ch->flags & 4) == 4)                            // global channel without zone name in pattern
-            continue;
-
-        const char* new_channel_name_buf;
-		new_channel_name_buf = "world";
-		Channel* new_channel = cMgr->GetJoinChannel(new_channel_name_buf,ch->ChannelID);
-
-        if ((*i)!=new_channel)
-        {
-            new_channel->Join(GetObjectGuid(),"");          // will output Changed Channel: N. Name
-
-            // leave old channel
-            (*i)->Leave(GetObjectGuid(),false);             // not send leave channel, it already replaced at client
-            std::string name = (*i)->GetName();             // store name, (*i)erase in LeftChannel
-            LeftChannel(*i);                                // remove from player's channel list
-            cMgr->LeftChannel(name);                        // delete if empty
-        }
-    }*/
-
 	QueryResult *result = CharacterDatabase.PQuery("SELECT * FROM game_tele WHERE level = '%u' ORDER BY RAND() LIMIT 1", randBotLevel);
     if( result )
     {
         Field *fields = result->Fetch();
-
-		Player::SavePositionInDB(m_bot->GetObjectGuid(), 
-		fields[5].GetUInt32(),
-        fields[1].GetFloat(),
-        fields[2].GetFloat(),
-        fields[3].GetFloat(),
-        fields[4].GetFloat(),
-        fields[8].GetFloat());
 
 		// map, X, Y, Z
 		m_bot->TeleportTo(fields[5].GetUInt32(), fields[1].GetFloat(), fields[2].GetFloat(), fields[3].GetFloat(), fields[4].GetFloat());
@@ -217,13 +170,6 @@ void PlayerbotAI::ReinitAI()
             uint32 a_id = m_bot->GetArenaTeamId(i);
             if (a_id==0)
                 continue;
-
-            /*ArenaTeam *at = sObjectMgr.GetArenaTeamById(a_id);
-            if (!at)
-                continue;
-
-            if (at->DisbandNoSave(m_bot))
-                delete at;*/
         }
         if (m_bot->GetGroup())
             m_bot->RemoveFromGroup();
@@ -1195,7 +1141,7 @@ void PlayerbotAI::UpdateAI(const uint32 p_time)
     //Usefull comment to test bots !
     /*if (!m_bot->GetGroup())
         return;*/
-
+	/*
     //ALWAYS RESPECT THIS ORDER !!!!
     if (!CheckLeader() || !CheckTeleport())
         return;
@@ -1299,7 +1245,7 @@ void PlayerbotAI::UpdateAI(const uint32 p_time)
                 /*uint32 lvl = m_bot->getLevel();
                 if (m_bot == GetLeader())
                     lvl = (lvl+1) > DEFAULT_MAX_LEVEL ? DEFAULT_MAX_LEVEL : (lvl+1);
-                InitBotStatsForLevel(lvl);*/
+                InitBotStatsForLevel(lvl);
             }
 
             SetState(BOTSTATE_NORMAL);
@@ -1313,7 +1259,7 @@ void PlayerbotAI::UpdateAI(const uint32 p_time)
         sLog.outString("%s !> %s", m_bot->GetName(), m_bot->getVictim() ? m_bot->getVictim()->GetName() : "NULL");
         sLog.outString("Movement : %u", m_bot->GetMotionMaster()->GetCurrentMovementGeneratorType());
         sLog.outString("(100)=%u", m_bot->IsWithinDistInMap(GetLeader(), MAX_DIST_BETWEEN_BOT_LEADER) ? 1 : 0);
-        sLog.outString("===============================================");*/
+        sLog.outString("===============================================");
 
         if (!IsInCombat())
         {
@@ -1350,7 +1296,7 @@ void PlayerbotAI::UpdateAI(const uint32 p_time)
 
             CheckRoles();
             /*if (GetLeader()->getLevel() != m_bot->getLevel())
-                InitBotStatsForLevel(GetLeader()->getLevel());*/
+                InitBotStatsForLevel(GetLeader()->getLevel());
 
             GetClassAI()->DoNonCombatActions();
             CheckMount();
@@ -1387,12 +1333,12 @@ void PlayerbotAI::UpdateAI(const uint32 p_time)
             if (!GetCurrentSpell() && HasArrived())
                 DoCombatManeuver(m_latestVictim);
         }
-    }
+    }*/
 }
 
 void PlayerbotAI::CheckRoles()
 {
-    switch (m_bot->getClass())
+    /*switch (m_bot->getClass())
     {
         case CLASS_WARRIOR:
             if (m_role != m_new_role)
@@ -1585,7 +1531,7 @@ void PlayerbotAI::CheckRoles()
                 m_classAI = (PlayerbotClassAI*) new PlayerbotDruidAI(m_bot, this);
             }
             break;
-    }
+    }*/
 }
 
 bool PlayerbotAI::FollowCheckTeleport(WorldObject *obj)
