@@ -161,7 +161,7 @@ void PlayerbotAI::ReinitAI()
         m_bot->m_movementInfo.RemoveMovementFlag(MOVEFLAG_FLYING);
 
     if (m_bot->isDead())
-        m_bot->ResurrectPlayer(100.0f)
+        m_bot->ResurrectPlayer(100.0f);
 
     if (m_bot == GetLeader())
     {   
