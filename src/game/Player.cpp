@@ -2528,12 +2528,9 @@ void Player::SetGMVisible(bool on)
 
 void Player::SetBotGMVisible(bool on)
 {
-    if(on)
-    {
+    if(on){
         SetVisibility(VISIBILITY_ON);
-    }
-    else
-    {
+    } else {
         SetVisibility(VISIBILITY_OFF);
     }
 
