@@ -58,27 +58,27 @@ PlayerbotAI::PlayerbotAI(PlayerbotMgr* const mgr, Player* const bot) : m_mgr(mgr
 {
     m_botState = BOTSTATE_NORMAL;
 
-    m_bot->GetPosition(orig_x, orig_y, orig_z);
-    orig_map = m_bot->GetMapId();
+	if(m_bot){
+		m_bot->GetPosition(orig_x, orig_y, orig_z);
+		orig_map = m_bot->GetMapId();
 
-	// Level aléatoire
-	int randBotLevel = int((double(rand())/RAND_MAX)*30) + 10;
-	InitBotStatsForLevel(randBotLevel);
+		// Level aléatoire
+		int randBotLevel = int((double(rand())/RAND_MAX)*30) + 10;
+		InitBotStatsForLevel(randBotLevel);
 
-	// Invibilité
-	m_bot->SetBotGMVisible(false);
+		// Invibilité
+		m_bot->SetBotGMVisible(false);
 
-	// Sélection d'un endroit de TP correspondant au Level
-	QueryResult *result = CharacterDatabase.PQuery("SELECT * FROM game_tele WHERE level = '%u' ORDER BY RAND() LIMIT 1", randBotLevel);
-    if( result ){
-        Field *fields = result->Fetch();
+		// Sélection d'un endroit de TP correspondant au Level
+		QueryResult *result = CharacterDatabase.PQuery("SELECT * FROM game_tele WHERE level = '%u' ORDER BY RAND() LIMIT 1", randBotLevel);
+		if( result ){
+			Field *fields = result->Fetch();
 
-		// Définition : TeleportTo(map, X, Y, Z);
-		m_bot->TeleportTo(fields[5].GetUInt32(), fields[1].GetFloat(), fields[2].GetFloat(), fields[3].GetFloat(), fields[4].GetFloat());
-	}
+			// Définition : TeleportTo(map, X, Y, Z);
+			m_bot->TeleportTo(fields[5].GetUInt32(), fields[1].GetFloat(), fields[2].GetFloat(), fields[3].GetFloat(), fields[4].GetFloat());
+		}
 
-	// Ajout du bot dans le chan world
-	if (m_bot->GetMap()){
+		// Ajout du bot dans le chan world
 		ChannelMgr* cMgr = channelMgr(m_bot->GetTeam());
 
 		const char* new_channel_name_buf;
