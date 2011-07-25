@@ -26,7 +26,6 @@ class Player;
 class Unit;
 class Object;
 class Item;
-class PlayerbotClassAI;
 
 class MANGOS_DLL_SPEC PlayerbotMgr
 {
@@ -37,26 +36,15 @@ public:
     // This is called from Unit.cpp and is called every second (I think)
     void UpdateAI(const uint32 p_time);
 
-    // This is called whenever the master sends a packet to the server.
-    // These packets can be viewed, but not edited.
-    // It allows bot creators to craft AI in response to a master's actions.
-    // For a list of opcodes that can be caught see Opcodes.cpp (CMSG_* opcodes only)
-    // Notice: that this is static which means it is called once for all bots of the master.
-    void HandleMasterIncomingPacket(const WorldPacket& packet);
     void HandleMasterOutgoingPacket(const WorldPacket& packet);
 
     static void AddAllBots();
 
     void LogoutPlayerBot(ObjectGuid guid);
     Player* GetPlayerBot (ObjectGuid guid) const;
-    Player* GetLeader() const { return m_master; };
-    void SetLeader(Player* pl) { m_master = pl; };
 
     void LogoutAllBots();
     void OnBotLogin(Player * const bot);
-
-protected:
-    Player* m_master;
 };
 
 #endif

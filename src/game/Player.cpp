@@ -1222,6 +1222,9 @@ void Player::Update( uint32 update_diff, uint32 p_time )
     if(!IsInWorld())
         return;
 
+	if (m_playerbotAI)
+		return;
+
     // remove failed timed Achievements
     GetAchievementMgr().DoFailedTimedAchievementCriterias();
 
@@ -1527,10 +1530,10 @@ void Player::Update( uint32 update_diff, uint32 p_time )
         TeleportTo(m_teleport_dest, m_teleport_options);
 
         // Playerbot mod
-    if (m_playerbotAI)
+    /*if (m_playerbotAI)
         m_playerbotAI->UpdateAI(p_time);
     else if (m_playerbotMgr)
-        m_playerbotMgr->UpdateAI(p_time);
+        m_playerbotMgr->UpdateAI(p_time);*/
 }
 
 void Player::SetDeathState(DeathState s)
