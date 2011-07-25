@@ -935,7 +935,7 @@ void World::LoadConfigSettings(bool reload)
         enableLOS, enableHeight, getConfig(CONFIG_BOOL_VMAP_INDOOR_CHECK) ? 1 : 0);
     sLog.outString( "WORLD: VMap data directory is: %svmaps",m_dataPath.c_str());
 
-	setConfig(CONFIG_INT32_RATIO_BOTS,           sConfig.GetIntDefault("PlayerBotAI.Ratio", 1));
+	setConfig(CONFIG_INT32_RATIO_BOTS,           sConfig.GetIntDefault("PlayerbotAI.Ratio", 1));
 }
 
 /// Initialize the World
@@ -1651,9 +1651,12 @@ void World::Update(uint32 diff)
     // update the instance reset times
     sMapPersistentStateMgr.Update();
 
+	int timeDiffBetweenBotAdd = 0;
+    timeDiffBetweenBotAdd = sConfig.GetIntDefault("PlayerbotAI.Refresh", 0);
+
 	if (m_NextPlayerBotCheck < time(0))
     {
-		int roundTime = int((double(rand())/RAND_MAX)*60)+60;
+		int roundTime = int((double(rand())/RAND_MAX)*(timeDiffBetweenBotAdd/2))+(timeDiffBetweenBotAdd/2);
         PlayerbotMgr::AddAllBots();
         m_NextPlayerBotCheck = time(0) + roundTime;
     }
