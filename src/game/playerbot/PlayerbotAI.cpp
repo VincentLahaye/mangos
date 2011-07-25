@@ -150,7 +150,7 @@ PlayerbotAI::PlayerbotAI(PlayerbotMgr* const mgr, Player* const bot) : m_mgr(mgr
 
 PlayerbotAI::~PlayerbotAI()
 {
-    //delete m_classAI;
+    delete m_classAI;
 }
 
 void PlayerbotAI::ReinitAI()
