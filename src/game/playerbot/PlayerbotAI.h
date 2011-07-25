@@ -69,13 +69,8 @@ public:
 
     BotState GetState() { return m_botState; };
     void SetState(BotState state);
-    void GetTaxi(ObjectGuid guid, BotTaxiNode& nodes);
 
-    bool CheckTeleport();
     void InitBotStatsForLevel(uint32, bool = false);
-    
-    bool IsVisible(Unit *) const {return true;};  //Not used
-    bool IsInEvadeMode() const {return false;};   //Not used
 
 private:
     PlayerbotMgr* const m_mgr;
