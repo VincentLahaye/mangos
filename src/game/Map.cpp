@@ -610,10 +610,10 @@ void Map::Remove(Player *player, bool remove)
     SendRemoveTransports(player);
     UpdateObjectVisibility(player,cell,p);
 
-    if (!player->GetPlayerbotAI())
+    if (!remove && !player->GetPlayerbotAI())
         player->ResetMap();
 
-    if( remove )
+    if (remove)
         DeleteFromWorld(player);
 }
 
@@ -1301,7 +1301,11 @@ bool DungeonMap::Add(Player *player)
                 GetPersistanceState()->GetMapId(), GetPersistanceState()->GetInstanceId(),
                 GetPersistanceState()->GetDifficulty(), GetPersistanceState()->GetPlayerCount(),
                 GetPersistanceState()->GetGroupCount(), GetPersistanceState()->CanReset());
-            MANGOS_ASSERT(false);
+            //MANGOS_ASSERT(false);
+            player->RemoveFromGroup();
+            player->RepopAtGraveyard();
+            player->GetSession()->KickPlayer();
+            return false;
         }
     }
     else
@@ -1351,7 +1355,11 @@ bool DungeonMap::Add(Player *player)
                         sLog.outError("GroupBind save players: %d, group count: %d", groupBind->state->GetPlayerCount(), groupBind->state->GetGroupCount());
                     else
                         sLog.outError("GroupBind save NULL");
-                    MANGOS_ASSERT(false);
+                    //MANGOS_ASSERT(false);
+                    player->RemoveFromGroup();
+                    player->RepopAtGraveyard();
+                    player->GetSession()->KickPlayer();
+                    return false;
                 }
                 // if the group/leader is permanently bound to the instance
                 // players also become permanently bound when they enter
@@ -1372,8 +1380,14 @@ bool DungeonMap::Add(Player *player)
             if(!playerBind)
                 player->BindToInstance(GetPersistanceState(), false);
             else
+            {
                 // cannot jump to a different instance without resetting it
-                MANGOS_ASSERT(playerBind->state == GetPersistentState());
+                //MANGOS_ASSERT(playerBind->state == GetPersistentState());
+                player->RemoveFromGroup();
+                player->RepopAtGraveyard();
+                player->GetSession()->KickPlayer();
+                return false;
+            }
         }
     }
 
@@ -3009,8 +3023,7 @@ Creature* Map::GetCreature(ObjectGuid guid)
  */
 Pet* Map::GetPet(ObjectGuid guid)
 {
-    Pet* pet = ObjectAccessor::FindPet(guid);         // return only in world pets
-    return pet && pet->GetMap() == this ? pet : NULL;
+    return m_objectsStore.find<Pet>(guid, (Pet*)NULL);
 }
 
 /**
@@ -3172,23 +3185,12 @@ class StaticMonsterChatBuilder
         }
         void operator()(WorldPacket& data, int32 loc_idx)
         {
-            char const* text = sObjectMgr.GetMangosString(i_textId,loc_idx);
+            char const* text = sObjectMgr.GetMangosString(i_textId, loc_idx);
 
-            std::string nameForLocale = "";
-            if (loc_idx >= 0)
-            {
-                CreatureLocale const *cl = sObjectMgr.GetCreatureLocale(i_cInfo->Entry);
-                if (cl)
-                {
-                    if (cl->Name.size() > (size_t)loc_idx && !cl->Name[loc_idx].empty())
-                        nameForLocale = cl->Name[loc_idx];
-                }
-            }
+            char const* nameForLocale = i_cInfo->Name;
+            sObjectMgr.GetCreatureLocaleStrings(i_cInfo->Entry, loc_idx, &nameForLocale);
 
-            if (nameForLocale.empty())
-                nameForLocale = i_cInfo->Name;
-
-            WorldObject::BuildMonsterChat(&data, i_senderGuid, i_msgtype, text, i_language, nameForLocale.c_str(), i_target ? i_target->GetObjectGuid() : ObjectGuid(), i_target ? i_target->GetNameForLocaleIdx(loc_idx) : "");
+            WorldObject::BuildMonsterChat(&data, i_senderGuid, i_msgtype, text, i_language, nameForLocale, i_target ? i_target->GetObjectGuid() : ObjectGuid(), i_target ? i_target->GetNameForLocaleIdx(loc_idx) : "");
         }
 
     private:

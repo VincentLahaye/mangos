@@ -265,6 +265,7 @@ ChatCommand * ChatHandler::getCommandTable()
         { "spellcoefs",     SEC_ADMINISTRATOR,  true,  &ChatHandler::HandleDebugSpellCoefsCommand,          "", NULL },
         { "spellmods",      SEC_ADMINISTRATOR,  false, &ChatHandler::HandleDebugSpellModsCommand,           "", NULL },
         { "uws",            SEC_ADMINISTRATOR,  false, &ChatHandler::HandleDebugUpdateWorldStateCommand,    "", NULL },
+        { "entervehicle",   SEC_GAMEMASTER,     false, &ChatHandler::HandleDebugEnterVehicleCommand,        "", NULL },
         { NULL,             0,                  false, NULL,                                                "", NULL }
     };
 
@@ -832,7 +833,7 @@ ChatCommand * ChatHandler::getCommandTable()
         { NULL,             0,                  false, NULL,                                           "", NULL }
     };
 
-    if(load_command_table)
+    if (load_command_table)
     {
         load_command_table = false;
 
@@ -942,19 +943,19 @@ bool ChatHandler::HasLowerSecurityAccount(WorldSession* target, uint32 target_ac
 bool ChatHandler::hasStringAbbr(const char* name, const char* part)
 {
     // non "" command
-    if( *name )
+    if ( *name )
     {
         // "" part from non-"" command
-        if( !*part )
+        if ( !*part )
             return false;
 
         for(;;)
         {
-            if( !*part )
+            if ( !*part )
                 return true;
-            else if( !*name )
+            else if ( !*name )
                 return false;
-            else if( tolower( *name ) != tolower( *part ) )
+            else if ( tolower( *name ) != tolower( *part ) )
                 return false;
             ++name; ++part;
         }
@@ -1351,13 +1352,13 @@ bool ChatHandler::ParseCommands(const char* text)
     MANGOS_ASSERT(text);
     MANGOS_ASSERT(*text);
 
-    //if(m_session->GetSecurity() == SEC_PLAYER)
+    //if (m_session->GetSecurity() == SEC_PLAYER)
     //    return false;
 
     /// chat case (.command or !command format)
     if (m_session)
     {
-        if(text[0] != '!' && text[0] != '.')
+        if (text[0] != '!' && text[0] != '.')
             return false;
 
         /// ignore single . and ! in line
@@ -1482,7 +1483,7 @@ valid examples:
 | will be escaped to ||
 */
 
-    if(strlen(message) > 255)
+    if (strlen(message) > 255)
         return false;
 
     const char validSequence[6] = "cHhhr";
@@ -1503,21 +1504,21 @@ valid examples:
 
             ++message;
             char commandChar = *message;
-            if(validCommands.find(commandChar) == std::string::npos)
+            if (validCommands.find(commandChar) == std::string::npos)
                 return false;
 
             ++message;
             // validate sequence
-            if(sWorld.getConfig(CONFIG_UINT32_CHAT_STRICT_LINK_CHECKING_SEVERITY) == 2)
+            if (sWorld.getConfig(CONFIG_UINT32_CHAT_STRICT_LINK_CHECKING_SEVERITY) == 2)
             {
-                if(commandChar == *validSequenceIterator)
+                if (commandChar == *validSequenceIterator)
                 {
                     if (validSequenceIterator == validSequence+4)
                         validSequenceIterator = validSequence;
                     else
                         ++validSequenceIterator;
                 }
-                else if(commandChar != '|')
+                else if (commandChar != '|')
                     return false;
             }
         }
@@ -1549,7 +1550,7 @@ valid examples:
 
             reader.ignore(255, '|');
         }
-        else if(reader.get() != '|')
+        else if (reader.get() != '|')
         {
             DEBUG_LOG("ChatHandler::isValidChatMessage sequence aborted unexpectedly");
             return false;
@@ -1572,7 +1573,7 @@ valid examples:
         // | in normal messages is escaped by ||
         if (commandChar != '|')
         {
-            if(commandChar == *validSequenceIterator)
+            if (commandChar == *validSequenceIterator)
             {
                 if (validSequenceIterator == validSequence+4)
                     validSequenceIterator = validSequence;
@@ -1585,7 +1586,7 @@ valid examples:
                 return false;
             }
         }
-        else if(validSequence != validSequenceIterator)
+        else if (validSequence != validSequenceIterator)
         {
             // no escaped pipes in sequences
             DEBUG_LOG("ChatHandler::isValidChatMessage got escaped pipe in sequence");
@@ -1668,7 +1669,7 @@ valid examples:
                             {
                                 propertyId*=10;
                                 propertyId += c-'0';
-                            } else if(c == '-')
+                            } else if (c == '-')
                                 negativeNumber = true;
                             else
                                 return false;
@@ -1749,9 +1750,9 @@ valid examples:
                         return false;
                     }
                 }
-                else if(strcmp(buffer, "trade") == 0)
+                else if (strcmp(buffer, "trade") == 0)
                 {
-                    if(color != CHAT_LINK_COLOR_TRADE)
+                    if (color != CHAT_LINK_COLOR_TRADE)
                         return false;
 
                     // read spell entry
@@ -1771,10 +1772,10 @@ valid examples:
                         c = reader.peek();
                     }
                 }
-                else if(strcmp(buffer, "talent") == 0)
+                else if (strcmp(buffer, "talent") == 0)
                 {
                     // talent links are always supposed to be blue
-                    if(color != CHAT_LINK_COLOR_TALENT)
+                    if (color != CHAT_LINK_COLOR_TALENT)
                         return false;
 
                     // read talent entry
@@ -1798,7 +1799,7 @@ valid examples:
                         c = reader.peek();
                     }
                 }
-                else if(strcmp(buffer, "spell") == 0)
+                else if (strcmp(buffer, "spell") == 0)
                 {
                     if (color != CHAT_LINK_COLOR_SPELL)
                         return false;
@@ -1817,7 +1818,7 @@ valid examples:
                     if (!linkedSpell)
                         return false;
                 }
-                else if(strcmp(buffer, "enchant") == 0)
+                else if (strcmp(buffer, "enchant") == 0)
                 {
                     if (color != CHAT_LINK_COLOR_ENCHANT)
                         return false;
@@ -1836,7 +1837,7 @@ valid examples:
                     if (!linkedSpell)
                         return false;
                 }
-                else if(strcmp(buffer, "achievement") == 0)
+                else if (strcmp(buffer, "achievement") == 0)
                 {
                     if (color != CHAT_LINK_COLOR_ACHIEVEMENT)
                         return false;
@@ -1859,9 +1860,9 @@ valid examples:
                         c = reader.peek();
                     }
                 }
-                else if(strcmp(buffer, "glyph") == 0)
+                else if (strcmp(buffer, "glyph") == 0)
                 {
-                    if(color != CHAT_LINK_COLOR_GLYPH)
+                    if (color != CHAT_LINK_COLOR_GLYPH)
                         return false;
 
                     // first id is slot, drop it
@@ -1933,7 +1934,7 @@ valid examples:
                                 return false;
                             }
 
-                            for(uint8 i=0; i<MAX_LOCALE; ++i)
+                            for(uint8 i=0; i < MAX_LOCALE; ++i)
                             {
                                 uint32 skillLineNameLength = strlen(skillLine->name[i]);
                                 if (skillLineNameLength > 0 && strncmp(skillLine->name[i], buffer, skillLineNameLength) == 0)
@@ -1970,7 +1971,7 @@ valid examples:
                             }
 
                             bool foundName = false;
-                            for(uint8 i=0; i<ql->Title.size(); i++)
+                            for(uint8 i=0; i < ql->Title.size(); ++i)
                             {
                                 if (ql->Title[i] == buffer)
                                 {
@@ -1985,7 +1986,7 @@ valid examples:
                             }
                         }
                     }
-                    else if(linkedItem)
+                    else if (linkedItem)
                     {
                         char* const* suffix = itemSuffix?itemSuffix->nameSuffix:(itemProperty?itemProperty->nameSuffix:NULL);
 
@@ -2058,7 +2059,7 @@ valid examples:
     }
 
     // check if every opened sequence was also closed properly
-    if(validSequence != validSequenceIterator)
+    if (validSequence != validSequenceIterator)
         DEBUG_LOG("ChatHandler::isValidChatMessage EOF in active sequence");
 
     return validSequence == validSequenceIterator;
@@ -2139,7 +2140,7 @@ void ChatHandler::FillMessageData( WorldPacket *data, WorldSession* session, uin
     *data << ObjectGuid(targetGuid);
     *data << uint32(messageLength);
     *data << message;
-    if(session && session->GetPlayer() && type != CHAT_MSG_WHISPER_INFORM && type != CHAT_MSG_DND && type != CHAT_MSG_AFK)
+    if (session && session->GetPlayer() && type != CHAT_MSG_WHISPER_INFORM && type != CHAT_MSG_DND && type != CHAT_MSG_AFK)
         *data << uint8(session->GetPlayer()->chatTag());
     else
         *data << uint8(0);
@@ -2995,7 +2996,7 @@ ObjectGuid ChatHandler::ExtractGuidFromLink(char** text)
             if (!ExtractUInt32(&idS, lowguid))
                 return ObjectGuid();
 
-            if(GameObjectData const* data = sObjectMgr.GetGOData(lowguid) )
+            if (GameObjectData const* data = sObjectMgr.GetGOData(lowguid) )
                 return ObjectGuid(HIGHGUID_GAMEOBJECT, data->id, lowguid);
             else
                 return ObjectGuid();
@@ -3115,7 +3116,7 @@ bool ChatHandler::ExtractLocationFromLink(char** text, uint32& mapid, float& x, 
             if (!ExtractUInt32(&idS, lowguid))
                 return false;
 
-            if(CreatureData const* data = sObjectMgr.GetCreatureData(lowguid) )
+            if (CreatureData const* data = sObjectMgr.GetCreatureData(lowguid) )
             {
                 mapid = data->mapid;
                 x = data->posX;
@@ -3132,7 +3133,7 @@ bool ChatHandler::ExtractLocationFromLink(char** text, uint32& mapid, float& x, 
             if (!ExtractUInt32(&idS, lowguid))
                 return false;
 
-            if(GameObjectData const* data = sObjectMgr.GetGOData(lowguid) )
+            if (GameObjectData const* data = sObjectMgr.GetGOData(lowguid) )
             {
                 mapid = data->mapid;
                 x = data->posX;
@@ -3290,30 +3291,30 @@ bool ChatHandler::ExtractPlayerTarget(char** args, Player** player /*= NULL*/, O
         Player* pl = sObjectMgr.GetPlayer(name.c_str());
 
         // if allowed player pointer
-        if(player)
+        if (player)
             *player = pl;
 
         // if need guid value from DB (in name case for check player existence)
         ObjectGuid guid = !pl && (player_guid || player_name) ? sObjectMgr.GetPlayerGuidByName(name) : ObjectGuid();
 
         // if allowed player guid (if no then only online players allowed)
-        if(player_guid)
+        if (player_guid)
             *player_guid = pl ? pl->GetObjectGuid() : guid;
 
-        if(player_name)
+        if (player_name)
             *player_name = pl || guid ? name : "";
     }
     else
     {
         Player* pl = getSelectedPlayer();
         // if allowed player pointer
-        if(player)
+        if (player)
             *player = pl;
         // if allowed player guid (if no then only online players allowed)
-        if(player_guid)
+        if (player_guid)
             *player_guid = pl ? pl->GetObjectGuid() : ObjectGuid();
 
-        if(player_name)
+        if (player_name)
             *player_name = pl ? pl->GetName() : "";
     }
 
