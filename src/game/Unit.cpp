@@ -6246,8 +6246,8 @@ bool Unit::isAttackingPlayer() const
 
 void Unit::RemoveAllAttackers()
 {
-    if (!GetMap())
-        return;
+    //if (!GetMap())
+    //    return;
 
     while (!m_attackers.empty())
     {
