@@ -27,7 +27,6 @@
 #include "Timer.h"
 #include "Policies/Singleton.h"
 #include "SharedDefines.h"
-#include <ace/RW_Thread_Mutex.h>
 
 #include <map>
 #include <set>
@@ -81,15 +80,6 @@ enum WorldTimers
     WUPDATE_AHBOT       = 6,
     WUPDATE_AUTOBROADCAST = 7,
     WUPDATE_COUNT       = 8
-};
-
-// World RW locking types for mtmaps
-enum WorldLockType
-{
-    WORLD_LOCK_AURAS,
-    WORLD_LOCK_TARGETS,
-    WORLD_LOCK_THREAT,
-    WORLD_LOCK_MAX,
 };
 
 /// Configuration elements
@@ -372,6 +362,7 @@ enum eConfigBoolValues
     CONFIG_BOOL_LFR_ENABLE,
     CONFIG_BOOL_LFG_DEBUG_ENABLE,
     CONFIG_BOOL_LFR_EXTEND,
+    CONFIG_BOOL_LFG_ONLYLASTENCOUNTER,
     CONFIG_BOOL_PLAYERBOT_DISABLE,
     CONFIG_BOOL_PLAYERBOT_DEBUGWHISPER,
     CONFIG_BOOL_CHECK_GO_IN_PATH,
@@ -627,12 +618,6 @@ class World
         char const* GetDBVersion() { return m_DBVersion.c_str(); }
         char const* GetCreatureEventAIVersion() { return m_CreatureEventAIVersion.c_str(); }
 
-        // World events locking
-        typedef ACE_RW_Thread_Mutex               WorldLock;
-        typedef ACE_Read_Guard<WorldLock>         WorldReadGuard;
-        typedef ACE_Write_Guard<WorldLock>        WorldWriteGuard;
-        WorldLock& GetLock(WorldLockType type)    { return i_worldLock[type]; }
-
     protected:
         void _UpdateGameTime();
         // callback for UpdateRealmCharacters
@@ -731,9 +716,6 @@ class World
         //used versions
         std::string m_DBVersion;
         std::string m_CreatureEventAIVersion;
-
-        WorldLock    i_worldLock[WORLD_LOCK_MAX];
-
 };
 
 extern uint32 realmID;

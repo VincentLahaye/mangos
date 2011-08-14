@@ -69,10 +69,7 @@ void Pet::AddToWorld()
 {
     ///- Register the pet for guid lookup
     if (!((Creature*)this)->IsInWorld())
-    {
         GetMap()->GetObjectsStore().insert<Pet>(GetObjectGuid(), (Pet*)this);
-        sObjectAccessor.AddObject(this);
-    }
 
     Unit::AddToWorld();
 }
@@ -81,16 +78,13 @@ void Pet::RemoveFromWorld()
 {
     ///- Remove the pet from the accessor
     if (((Creature*)this)->IsInWorld())
-    {
         GetMap()->GetObjectsStore().erase<Pet>(GetObjectGuid(), (Pet*)NULL);
-        sObjectAccessor.RemoveObject(this);
-    }
 
     ///- Don't call the function for Creature, normal mobs + totems go in a different storage
     Unit::RemoveFromWorld();
 }
 
-bool Pet::LoadPetFromDB( Player* owner, uint32 petentry, uint32 petnumber, bool current)
+bool Pet::LoadPetFromDB( Player* owner, uint32 petentry, uint32 petnumber, bool current, CreatureCreatePos* pos)
 {
     m_loading = true;
 
@@ -184,11 +178,12 @@ bool Pet::LoadPetFromDB( Player* owner, uint32 petentry, uint32 petnumber, bool 
 
     Map *map = owner->GetMap();
 
-    CreatureCreatePos pos(owner, owner->GetOrientation(), PET_FOLLOW_DIST, GetPetFollowAngle());
+    if (!pos)
+        pos = &CreatureCreatePos(owner, owner->GetOrientation(), PET_FOLLOW_DIST, GetPetFollowAngle());
 
-    uint32 guid = pos.GetMap()->GenerateLocalLowGuid(HIGHGUID_PET);
+    uint32 guid = pos->GetMap()->GenerateLocalLowGuid(HIGHGUID_PET);
 
-    if (!Create(guid, pos, creatureInfo, pet_number, owner))
+    if (!Create(guid, *pos, creatureInfo, pet_number, owner))
     {
         delete result;
         return false;
@@ -209,7 +204,7 @@ bool Pet::LoadPetFromDB( Player* owner, uint32 petentry, uint32 petnumber, bool 
     if (cinfo->type == CREATURE_TYPE_CRITTER)
     {
         AIM_Initialize();
-        pos.GetMap()->Add((Creature*)this);
+        pos->GetMap()->Add((Creature*)this);
         delete result;
         return true;
     }
@@ -514,8 +509,8 @@ void Pet::SetDeathState(DeathState s)                       // overwrite virtual
             if(!mapEntry || (mapEntry->map_type != MAP_ARENA && mapEntry->map_type != MAP_BATTLEGROUND))
                 ModifyPower(POWER_HAPPINESS, -HAPPINESS_LEVEL_SIZE);
 
-            if( HasSpell(55709) && GetOwner() && GetOwner()->GetTypeId() == TYPEID_PLAYER)
-                GetOwner()->CastSpell(GetOwner(), 54114, false);
+            if (HasSpell(55709))
+                CastSpell(this, 55709, true);
 
             SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_STUNNED);
         }
@@ -560,6 +555,13 @@ void Pet::Update(uint32 update_diff, uint32 diff)
                 DEBUG_LOG("Pet's %d owner died, removed. ", GetObjectGuid().GetCounter());
                 Unsummon(getPetType() == HUNTER_PET ? PET_SAVE_AS_CURRENT : PET_SAVE_NOT_IN_SLOT, owner);
                 return;
+            }
+
+            if (GetCreator() != GetOwner())
+            {
+                // special way for remove elementals, if totem is dead
+                if (!GetCreator() || !GetCreator()->isAlive())
+                    Unsummon(PET_SAVE_NOT_IN_SLOT);
             }
 
             if ((!IsWithinDistInMap(owner, GetMap()->GetVisibilityDistance()) && !owner->GetCharmGuid().IsEmpty()) || (isControlled() && owner->GetPetGuid().IsEmpty()))
@@ -761,6 +763,7 @@ void Pet::Unsummon(PetSaveMode mode, Unit* owner /*= NULL*/)
                 owner->RemoveGuardian(this);
                 break;
             default:
+                owner->RemovePetFromList(this);
                 if (owner->GetPetGuid() == GetObjectGuid())
                     owner->SetPet(NULL);
                 break;
@@ -2875,6 +2878,13 @@ bool Pet::Summon()
             SetNeedSave(true);
             owner->SetPet(this);
             setFaction(owner->getFaction());
+            // generate new name for first summon pet (not for tempsummoned)
+            if (!isTemporarySummoned())
+            {
+                std::string new_name = sObjectMgr.GeneratePetName(GetEntry());
+                if (!new_name.empty())
+                    SetName(new_name);
+            }
             break;
         }
         case HUNTER_PET:  // Called only if new tamed pet created
