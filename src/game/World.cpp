@@ -1653,7 +1653,7 @@ void World::Update(uint32 diff)
     sMapPersistentStateMgr.Update();
 
 	int timeDiffBetweenBotAdd = 0;
-    timeDiffBetweenBotAdd = sConfig.GetIntDefault("PlayerbotAI.Refresh", 0);
+    timeDiffBetweenBotAdd = sConfig.GetIntDefault("PlayerbotAI.Refresh", 60);
 
 	if (m_NextPlayerBotCheck < time(0))
     {
