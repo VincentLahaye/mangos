@@ -488,7 +488,7 @@ Player::Player (WorldSession *session): Unit(), m_mover(this), m_camera(this), m
     m_canTitanGrip = false;
     m_ammoDPS = 0.0f;
 
-    m_temporaryUnsummonedPetNumber = 0;
+    m_temporaryUnsummonedPetNumber.clear();
 
     ////////////////////Rest System/////////////////////
     time_inn_enter=0;
@@ -17212,8 +17212,50 @@ void Player::LoadPet()
     if (IsInWorld())
     {
         Pet *pet = new Pet;
+        pet->SetPetCounter(0);
         if(!pet->LoadPetFromDB(this, 0, 0, true))
+        {
             delete pet;
+            return;
+        }
+
+        if (sWorld.getConfig(CONFIG_BOOL_PET_SAVE_ALL))
+        {
+            uint32 pet_entry = pet->GetEntry();
+            uint32 pet_num = pet->GetCharmInfo()->GetPetNumber();
+            QueryResult* result = CharacterDatabase.PQuery("SELECT id FROM character_pet WHERE owner = '%u' AND entry = '%u' AND id != '%u'",
+                GetGUIDLow(), pet_entry, pet_num);
+
+            std::vector<uint32> petnumber;
+            if (result)
+            {
+                do
+                {
+                    Field* fields = result->Fetch();
+                    uint32 petnum = fields[0].GetUInt32();
+                    if (petnum && petnum != pet_num)
+                        petnumber.push_back(petnum);
+                }
+                while (result->NextRow());
+                delete result;
+            }
+            else
+                return;
+
+            if (!petnumber.empty())
+            {
+                for(uint8 i = 0; i < petnumber.size(); ++i)
+                {
+                    if (petnumber[i] == 0)
+                        continue;
+
+                    Pet* _pet = new Pet;
+                    _pet->SetPetCounter(i+1);
+                    if (!_pet->LoadPetFromDB(this, pet_entry, petnumber[i], true))
+                        delete _pet;
+                }
+            }
+        }
     }
 }
 
@@ -19291,8 +19333,11 @@ void Player::SendPetGUIDs()
 
     WorldPacket data(SMSG_PET_GUIDS, 4+8*m_groupPets.size());
     data << uint32(m_groupPets.size());                      // count
+    if (!m_groupPets.empty())
+    {
     for (GroupPetList::const_iterator itr = m_groupPets.begin(); itr != m_groupPets.end(); ++itr)
         data << (*itr);
+    }
     GetSession()->SendPacket(&data);
 }
 
@@ -23119,20 +23164,40 @@ void Player::UnsummonPetTemporaryIfAny(bool full)
         minipet->Unsummon(PET_SAVE_AS_DELETED, this);
 
     Pet* pet = GetPet();
+    if (!pet)
+        return;
 
-    if (pet && !m_temporaryUnsummonedPetNumber && pet->isControlled() && !pet->isTemporarySummoned())
-        m_temporaryUnsummonedPetNumber = pet->GetCharmInfo()->GetPetNumber();
+    Map* petmap = pet->GetMap();
+    if (!petmap)
+        return;
 
     GroupPetList m_groupPetsTmp = GetPets();  // Original list may be modified in this function
+    if (m_groupPetsTmp.empty())
+        return;
+
     for (GroupPetList::const_iterator itr = m_groupPetsTmp.begin(); itr != m_groupPetsTmp.end(); ++itr)
     {
-        if (Pet* _pet = GetMap()->GetPet(*itr))
+        if (Pet* pet = petmap->GetPet(*itr))
         {
-            if (!_pet->isTemporarySummoned())
-                _pet->Unsummon(PET_SAVE_AS_CURRENT, this);
+            if (!sWorld.getConfig(CONFIG_BOOL_PET_SAVE_ALL))
+            {
+                if (!GetTemporaryUnsummonedPetCount() && pet->isControlled() && !pet->isTemporarySummoned() && !pet->GetPetCounter())
+                {
+                    SetTemporaryUnsummonedPetNumber(pet->GetCharmInfo()->GetPetNumber());
+                    pet->Unsummon(PET_SAVE_AS_CURRENT, this);
+                }
             else
                 if (full)
-                    _pet->Unsummon(PET_SAVE_NOT_IN_SLOT, this);
+                        pet->Unsummon(PET_SAVE_NOT_IN_SLOT, this);
+            }
+            else
+            {
+                SetTemporaryUnsummonedPetNumber(pet->GetCharmInfo()->GetPetNumber(), pet->GetPetCounter());
+                if (!pet->GetPetCounter() && pet->getPetType() == HUNTER_PET)
+                    pet->Unsummon(PET_SAVE_AS_CURRENT, this);
+                else
+                    pet->Unsummon(PET_SAVE_NOT_IN_SLOT, this);
+            }
         }
     }
 
@@ -23140,23 +23205,36 @@ void Player::UnsummonPetTemporaryIfAny(bool full)
 
 void Player::ResummonPetTemporaryUnSummonedIfAny()
 {
-    if (!m_temporaryUnsummonedPetNumber)
+    if (!GetTemporaryUnsummonedPetCount())
         return;
 
     // not resummon in not appropriate state
     if (IsPetNeedBeTemporaryUnsummoned())
         return;
 
-    if (GetPetGuid())
-        return;
+//    if (GetPetGuid())
+//        return;
 
+    // sort petlist - 0 must be _last_
+    for (uint8 count = GetTemporaryUnsummonedPetCount(); count != 0; --count)
+    {
+        uint32 petnum = GetTemporaryUnsummonedPetNumber(count-1);
+        if (petnum == 0)
+            continue;
+        DEBUG_LOG("Player::ResummonPetTemporaryUnSummonedIfAny summon pet %u count %u",petnum, count-1);
     Pet* NewPet = new Pet;
-    NewPet->SetPetCounter(0);
-    if(!NewPet->LoadPetFromDB(this, 0, m_temporaryUnsummonedPetNumber, true))
+        NewPet->SetPetCounter(count-1);
+        if(!NewPet->LoadPetFromDB(this, 0, petnum))
         delete NewPet;
-
-    m_temporaryUnsummonedPetNumber = 0;
+    }
+    ClearTemporaryUnsummonedPetStorage();
 }
+
+uint32 Player::GetTemporaryUnsummonedPetNumber(uint8 count)
+{
+    PetNumberList::const_iterator itr = m_temporaryUnsummonedPetNumber.find(count);
+    return itr != m_temporaryUnsummonedPetNumber.end() ? itr->second : 0;
+};
 
 bool Player::canSeeSpellClickOn(Creature const *c) const
 {
