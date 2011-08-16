@@ -17211,7 +17211,8 @@ void Player::LoadPet()
     // just not added to the map
     if (IsInWorld())
     {
-        Pet *pet = new Pet;
+        Pet* pet = new Pet;
+
         pet->SetPetCounter(0);
         if(!pet->LoadPetFromDB(this, 0, 0, true))
         {
@@ -19328,15 +19329,12 @@ void Player::PetSpellInitialize()
 void Player::SendPetGUIDs()
 {
     GroupPetList m_groupPets = GetPets();
-    if (m_groupPets.empty())
-        return;
-
     WorldPacket data(SMSG_PET_GUIDS, 4+8*m_groupPets.size());
     data << uint32(m_groupPets.size());                      // count
     if (!m_groupPets.empty())
     {
-    for (GroupPetList::const_iterator itr = m_groupPets.begin(); itr != m_groupPets.end(); ++itr)
-        data << (*itr);
+        for (GroupPetList::const_iterator itr = m_groupPets.begin(); itr != m_groupPets.end(); ++itr)
+            data << (*itr);
     }
     GetSession()->SendPacket(&data);
 }
@@ -23186,8 +23184,9 @@ void Player::UnsummonPetTemporaryIfAny(bool full)
                     SetTemporaryUnsummonedPetNumber(pet->GetCharmInfo()->GetPetNumber());
                     pet->Unsummon(PET_SAVE_AS_CURRENT, this);
                 }
-            else
-                if (full)
+
+                else
+                    if (full)
                         pet->Unsummon(PET_SAVE_NOT_IN_SLOT, this);
             }
             else
@@ -23222,10 +23221,11 @@ void Player::ResummonPetTemporaryUnSummonedIfAny()
         if (petnum == 0)
             continue;
         DEBUG_LOG("Player::ResummonPetTemporaryUnSummonedIfAny summon pet %u count %u",petnum, count-1);
-    Pet* NewPet = new Pet;
+
+        Pet* NewPet = new Pet;
         NewPet->SetPetCounter(count-1);
         if(!NewPet->LoadPetFromDB(this, 0, petnum))
-        delete NewPet;
+            delete NewPet;
     }
     ClearTemporaryUnsummonedPetStorage();
 }
