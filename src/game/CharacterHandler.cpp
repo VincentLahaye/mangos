@@ -613,33 +613,33 @@ void PlayerbotMgr::AddAllBots()
 	int botNumber;
 
 	if(tm->tm_hour >= 0 && tm->tm_hour < 3){
-		botNumber = sWorld.getConfig(CONFIG_INT32_RATIO_BOTS) * 7;
+		botNumber = sWorld.getConfig(CONFIG_FLOAT_RATIO_BOTS) * 7;
 	} else if (tm->tm_hour >= 2 && tm->tm_hour < 7){
-		botNumber = sWorld.getConfig(CONFIG_INT32_RATIO_BOTS) * 5;
+		botNumber = sWorld.getConfig(CONFIG_FLOAT_RATIO_BOTS) * 5;
 	} else if (tm->tm_hour >= 7 && tm->tm_hour < 8){
-		botNumber = sWorld.getConfig(CONFIG_INT32_RATIO_BOTS) * 6;
+		botNumber = sWorld.getConfig(CONFIG_FLOAT_RATIO_BOTS) * 6;
 	} else if (tm->tm_hour >= 8 && tm->tm_hour < 10){
-		botNumber = sWorld.getConfig(CONFIG_INT32_RATIO_BOTS) * 10;
+		botNumber = sWorld.getConfig(CONFIG_FLOAT_RATIO_BOTS) * 10;
 	} else if (tm->tm_hour >= 10 && tm->tm_hour < 12){
-		botNumber = sWorld.getConfig(CONFIG_INT32_RATIO_BOTS) * 14;
+		botNumber = sWorld.getConfig(CONFIG_FLOAT_RATIO_BOTS) * 14;
 	} else if (tm->tm_hour >= 12 && tm->tm_hour < 14){
-		botNumber = sWorld.getConfig(CONFIG_INT32_RATIO_BOTS) * 15;
+		botNumber = sWorld.getConfig(CONFIG_FLOAT_RATIO_BOTS) * 15;
 	} else if (tm->tm_hour >= 14 && tm->tm_hour < 16){
-		botNumber = sWorld.getConfig(CONFIG_INT32_RATIO_BOTS) * 10;
+		botNumber = sWorld.getConfig(CONFIG_FLOAT_RATIO_BOTS) * 10;
 	} else if (tm->tm_hour >= 16 && tm->tm_hour < 18){
-		botNumber = sWorld.getConfig(CONFIG_INT32_RATIO_BOTS) * 20;
+		botNumber = sWorld.getConfig(CONFIG_FLOAT_RATIO_BOTS) * 20;
 	} else if (tm->tm_hour >= 18 && tm->tm_hour < 19){
-		botNumber = sWorld.getConfig(CONFIG_INT32_RATIO_BOTS) * 15;
+		botNumber = sWorld.getConfig(CONFIG_FLOAT_RATIO_BOTS) * 15;
 	} else if (tm->tm_hour >= 19 && tm->tm_hour < 22){
-		botNumber = sWorld.getConfig(CONFIG_INT32_RATIO_BOTS) * 20;
+		botNumber = sWorld.getConfig(CONFIG_FLOAT_RATIO_BOTS) * 20;
 	} else if (tm->tm_hour >= 22 && tm->tm_hour < 0){
-		botNumber = sWorld.getConfig(CONFIG_INT32_RATIO_BOTS) * 15;
+		botNumber = sWorld.getConfig(CONFIG_FLOAT_RATIO_BOTS) * 15;
 	} else {
-		botNumber = sWorld.getConfig(CONFIG_INT32_RATIO_BOTS) * 15;
+		botNumber = sWorld.getConfig(CONFIG_FLOAT_RATIO_BOTS) * 15;
 	}
 
-    int nbBotsWantedAlliance = (botNumber/2) - nbBotsCurrAlliance;
-    int nbBotsWantedHorde = (botNumber/2) - nbBotsCurrHorde;
+    int nbBotsWantedAlliance = round(botNumber/2) - nbBotsCurrAlliance;
+    int nbBotsWantedHorde = round(botNumber/2) - nbBotsCurrHorde;
 
     if (nbBotsWantedAlliance == 0 && nbBotsCurrHorde == 0)
         return;

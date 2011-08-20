@@ -608,6 +608,9 @@ void World::LoadConfigSettings(bool reload)
     setConfig(CONFIG_FLOAT_PLAYERBOT_MINDISTANCE, "PlayerbotAI.FollowDistanceMin", 0.5f);
     setConfig(CONFIG_FLOAT_PLAYERBOT_MAXDISTANCE, "PlayerbotAI.FollowDistanceMax", 1.0f);
 
+	setConfig(CONFIG_FLOAT_REFRESH_BOTS, "PlayerbotAI.Refresh", 60);
+	setConfig(CONFIG_FLOAT_RATIO_BOTS, "PlayerbotAI.Ratio", 1);
+
     setConfig(CONFIG_BOOL_LFG_ENABLE, "LFG.Enable", false);
     setConfig(CONFIG_BOOL_LFR_ENABLE, "LFR.Enable", false);
     setConfig(CONFIG_BOOL_LFG_DEBUG_ENABLE, "LFG.Debug", false);
@@ -1655,7 +1658,7 @@ void World::Update(uint32 diff)
     sMapPersistentStateMgr.Update();
 
 	int timeDiffBetweenBotAdd = 0;
-    timeDiffBetweenBotAdd = sConfig.GetIntDefault("PlayerbotAI.Refresh", 60);
+    timeDiffBetweenBotAdd = sWorld.getConfig(CONFIG_FLOAT_REFRESH_BOTS);
 
 	if (m_NextPlayerBotCheck < time(0))
     {
