@@ -638,8 +638,10 @@ void PlayerbotMgr::AddAllBots()
 		botNumber = sWorld.getConfig(CONFIG_FLOAT_RATIO_BOTS) * 15;
 	}
 
-    float nbBotsWantedAlliance = round(botNumber/2) - nbBotsCurrAlliance;
-    float nbBotsWantedHorde = round(botNumber/2) - nbBotsCurrHorde;
+    int nbBotsWantedAlliance = round(botNumber/2) - nbBotsCurrAlliance;
+    int nbBotsWantedHorde = round(botNumber/2) - nbBotsCurrHorde;
+
+	sLog.outString("Alliance [%u] - Horde [%u]", nbBotsWantedAlliance, nbBotsWantedHorde);
 
     if (nbBotsWantedAlliance == 0 && nbBotsCurrHorde == 0)
         return;
@@ -1288,7 +1290,6 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder *holder)
 
 	if (pCurrChar->IsBot())
     {
-		sLog.outString( "Bot connection from CharacterHandler.cpp" );
         PlayerbotMgr *mgr = new PlayerbotMgr();
         pCurrChar->SetPlayerbotMgr(mgr);
         mgr->OnBotLogin(pCurrChar);
