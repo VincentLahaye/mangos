@@ -610,7 +610,7 @@ void PlayerbotMgr::AddAllBots()
 	timestamp = time(NULL);
     tm = localtime(&timestamp);
 
-	int botNumber;
+	uint32 botNumber;
 
 	if(tm->tm_hour >= 0 && tm->tm_hour < 3){
 		botNumber = sWorld.getConfig(CONFIG_UINT32_RATIO_BOTS) * 3;
@@ -638,8 +638,8 @@ void PlayerbotMgr::AddAllBots()
 		botNumber = sWorld.getConfig(CONFIG_UINT32_RATIO_BOTS) * 6;
 	}
 
-    int nbBotsWantedAlliance = (botNumber/2) - nbBotsCurrAlliance;
-    int nbBotsWantedHorde = (botNumber/2) - nbBotsCurrHorde;
+    uint32 nbBotsWantedAlliance = (botNumber/2) - nbBotsCurrAlliance;
+    uint32 nbBotsWantedHorde = (botNumber/2) - nbBotsCurrHorde;
 
 	sLog.outString("Alliance [%u] - Horde [%u]", nbBotsWantedAlliance, nbBotsWantedHorde);
 
