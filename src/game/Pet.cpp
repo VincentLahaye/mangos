@@ -56,6 +56,8 @@ m_petFollowAngle(PET_FOLLOW_ANGLE), m_needSave(true), m_petCounter(0), m_PetScal
 
 Pet::~Pet()
 {
+    CleanupsBeforeDelete();
+
     delete m_declinedname;
 
     if (m_PetScalingData)
@@ -539,7 +541,7 @@ void Pet::SetDeathState(DeathState s)                       // overwrite virtual
 
 void Pet::Update(uint32 update_diff, uint32 diff)
 {
-    if (m_removed)                                          // pet already removed, just wait in remove queue, no updates
+    if (!IsInWorld() || m_removed)                          // pet already removed, just wait in remove queue, no updates
         return;
 
     if (m_updated)                                          // pet now already upated (in other thread?)
