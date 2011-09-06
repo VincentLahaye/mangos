@@ -1322,11 +1322,11 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit *pVictim, uint32 damage, Aura
                 target = this;
                 switch (dummySpell->Id)
                 {
-                    case 31571: 
-                        triggered_spell_id = 57529; 
+                    case 31571:
+                        triggered_spell_id = 57529;
                         break;
-                    case 31572: 
-                        triggered_spell_id = 57531; 
+                    case 31572:
+                        triggered_spell_id = 57531;
                         break;
                     default:
                         sLog.outError("Unit::HandleDummyAuraProc: non handled spell id: %u",dummySpell->Id);
@@ -1477,6 +1477,24 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit *pVictim, uint32 damage, Aura
                     basepoints[0] = damage * 15 / 100;
                     break;
                 }
+                // Fingers of Frost
+                case 74396:
+                {
+                    // Remove only single aura from stack
+                    SpellAuraHolder* holder = triggeredByAura->GetHolder();
+                    if (holder && !holder->IsDeleted())
+                    {
+                        if (holder->ModStackAmount(-1))
+                        {
+                            RemoveSpellAuraHolder(holder);
+                            RemoveAurasDueToSpell(44544);
+                        }
+                        return SPELL_AURA_PROC_OK;
+                    }
+                    else
+                        return SPELL_AURA_PROC_FAILED;
+                    break;
+                }
             }
             break;
         }
@@ -1504,14 +1522,14 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit *pVictim, uint32 damage, Aura
 
                 switch (dummySpell->Id)
                 {
-                    case 29838: 
-                        triggered_spell_id=29842; 
+                    case 29838:
+                        triggered_spell_id=29842;
                         break;
-                    case 29834: 
-                        triggered_spell_id=29841; 
+                    case 29834:
+                        triggered_spell_id=29841;
                         break;
-                    case 42770: 
-                        triggered_spell_id=42771; 
+                    case 42770:
+                        triggered_spell_id=42771;
                         break;
                     default:
                         sLog.outError("Unit::HandleDummyAuraProc: non handled spell id: %u (SW)",dummySpell->Id);
@@ -1958,6 +1976,17 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit *pVictim, uint32 damage, Aura
                 {
                     // Deadly Interrupt Effect
                     triggered_spell_id = 32747;
+                    break;
+                }
+                // Glyph of Rejuvenation
+                case 54754:
+                {
+                   if (!pVictim || pVictim->GetHealthPercent() >= 50.0f)
+                        return SPELL_AURA_PROC_FAILED;
+
+                    target = pVictim;
+                    triggered_spell_id = 54755;
+                    basepoints[0] = int32(damage * triggerAmount  / 100);
                     break;
                 }
                 // Glyph of Starfire
@@ -2606,17 +2635,17 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit *pVictim, uint32 damage, Aura
 
                     switch (this->getPowerType())
                     {
-                        case POWER_ENERGY: 
-                            triggered_spell_id = 71882; 
+                        case POWER_ENERGY:
+                            triggered_spell_id = 71882;
                             break;
-                        case POWER_RAGE:   
-                            triggered_spell_id = 71883; 
+                        case POWER_RAGE:
+                            triggered_spell_id = 71883;
                             break;
-                        case POWER_MANA:   
-                            triggered_spell_id = 71881; 
+                        case POWER_MANA:
+                            triggered_spell_id = 71881;
                             break;
-                        case POWER_RUNIC_POWER:   
-                            triggered_spell_id = 71884; 
+                        case POWER_RUNIC_POWER:
+                            triggered_spell_id = 71884;
                             break;
                         default:
                             return SPELL_AURA_PROC_FAILED;
@@ -2631,17 +2660,17 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit *pVictim, uint32 damage, Aura
 
                     switch (this->getPowerType())
                     {
-                        case POWER_ENERGY:        
-                            triggered_spell_id = 71887; 
+                        case POWER_ENERGY:
+                            triggered_spell_id = 71887;
                             break;
-                        case POWER_RAGE:          
-                            triggered_spell_id = 71886; 
+                        case POWER_RAGE:
+                            triggered_spell_id = 71886;
                             break;
-                        case POWER_MANA:          
-                            triggered_spell_id = 71888; 
+                        case POWER_MANA:
+                            triggered_spell_id = 71888;
                             break;
-                        case POWER_RUNIC_POWER:   
-                            triggered_spell_id = 71885; 
+                        case POWER_RUNIC_POWER:
+                            triggered_spell_id = 71885;
                             break;
                         default:
                             return SPELL_AURA_PROC_FAILED;
@@ -3684,6 +3713,13 @@ SpellAuraProcResult Unit::HandleProcTriggerSpellAuraProc(Unit *pVictim, uint32 d
                     return SPELL_AURA_PROC_FAILED;
 
                 if (HasAura(44401) || HasAura(57761))
+                    return SPELL_AURA_PROC_FAILED;
+            }
+            // Fingers of Frost 
+            else if (auraSpellInfo->SpellIconID == 2947)
+            {
+                // proc chance for spells in basepoints
+                if (!roll_chance_i(triggerAmount))
                     return SPELL_AURA_PROC_FAILED;
             }
             break;
@@ -5022,7 +5058,7 @@ bool Unit::IsTriggeredAtCustomProcEvent(Unit *pVictim, SpellAuraHolder* holder, 
 
     for (int32 i = 0; i < MAX_EFFECT_INDEX; ++i)
     {
-        if (Aura* aura = holder->GetAuraByEffectIndex(SpellEffectIndex(i)))
+        if (holder->GetAuraByEffectIndex(SpellEffectIndex(i)))
         {
             AuraType auraName = AuraType(spellProto->EffectApplyAuraName[i]);
 

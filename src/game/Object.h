@@ -581,7 +581,9 @@ class MANGOS_DLL_SPEC WorldObject : public Object
         virtual bool isVisibleForInState(Player const* u, WorldObject const* viewPoint, bool inVisibleList) const = 0;
 
         void SetMap(Map * map);
-		Map * GetMap() const { if(m_currMap){ MANGOS_ASSERT(m_currMap); return m_currMap; } else { return NULL; } }
+
+        Map * GetMap() const { return m_currMap; }
+
         //used to check all object's GetMap() calls when object is not in world!
         void ResetMap() { m_currMap = NULL; }
 
@@ -650,5 +652,21 @@ class MANGOS_DLL_SPEC WorldObject : public Object
 
         WorldUpdateCounter m_updateTracker;
 };
+
+#ifndef MAPLOCK_READ(OBJ,TYPE)
+#  define MAPLOCK_READ(OBJ,TYPE) Map::ReadGuard Guard((OBJ)->GetMap()->GetLock(TYPE));
+#endif
+
+#ifndef MAPLOCK_READ1(OBJ,TYPE)
+#  define MAPLOCK_READ1(OBJ,TYPE) Map::ReadGuard Guard1((OBJ)->GetMap()->GetLock(TYPE));
+#endif
+
+#ifndef MAPLOCK_READ2(OBJ,TYPE)
+#  define MAPLOCK_READ2(OBJ,TYPE) Map::ReadGuard Guard2((OBJ)->GetMap()->GetLock(TYPE));
+#endif
+
+#ifndef MAPLOCK_WRITE(OBJ,TYPE)
+#  define MAPLOCK_WRITE(OBJ,TYPE) Map::WriteGuard Guard((OBJ)->GetMap()->GetLock(TYPE));
+#endif
 
 #endif

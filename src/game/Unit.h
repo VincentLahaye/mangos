@@ -116,7 +116,9 @@ enum SpellModOp
     // spellmod 25 unused
     SPELLMOD_FREQUENCY_OF_SUCCESS   = 26,                   // Only used with SPELL_AURA_ADD_PCT_MODIFIER and affects used on proc spells
     SPELLMOD_MULTIPLE_VALUE         = 27,
-    SPELLMOD_RESIST_DISPEL_CHANCE   = 28
+    SPELLMOD_RESIST_DISPEL_CHANCE   = 28,
+    SPELLMOD_UNK29                  = 29,                   // used by single test spell 45365
+    SPELLMOD_COST_ON_HIT_FAIL       = 30
 };
 
 #define MAX_SPELLMOD 32
@@ -1215,7 +1217,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         bool AttackStop(bool targetSwitch = false);
         void RemoveAllAttackers();
         bool isAttackingPlayer() const;
-        Unit* getVictim() const { return GetMap() ? GetMap()->GetUnit(m_attackingGuid) : NULL; }
+        Unit* getVictim() const { return IsInWorld() ? GetMap()->GetUnit(m_attackingGuid) : NULL; }
         void CombatStop(bool includingCast = false);
         void CombatStopWithPets(bool includingCast = false);
         void StopAttackFaction(uint32 faction_id);
@@ -1718,7 +1720,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         int32 m_baseSpellCritChance;
 
         float m_threatModifier[MAX_SPELL_SCHOOL];
-        float m_modAttackSpeedPct[MAX_ATTACK + 2];
+        float m_modAttackSpeedPct[MAX_ATTACK_MOD];
         float m_modSpellSpeedPctNeg;
         float m_modSpellSpeedPctPos;
 

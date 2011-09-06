@@ -1147,7 +1147,7 @@ void Spell::DoAllEffectOnTarget(TargetInfo *target)
         if (m_spellInfo->SpellFamilyName == SPELLFAMILY_WARLOCK && m_spellInfo->SpellIconID == 3172 &&
             m_spellInfo->SpellFamilyFlags.test<CF_WARLOCK_HAUNT>())
             if (Aura* dummy = unitTarget->GetDummyAura(m_spellInfo->Id))
-                dummy->GetModifier()->m_amount = damageInfo.damage;
+                dummy->GetModifier()->m_amount = damageInfo.damage + damageInfo.absorb;
 
         /* process anticheat check */
         if (caster->GetObjectGuid().IsPlayer())
@@ -1333,7 +1333,7 @@ void Spell::DoSpellHitOnUnit(Unit *unit, uint32 effectMask)
         m_diminishGroup = GetDiminishingReturnsGroupForSpell(m_spellInfo,m_triggeredByAuraSpell);
         m_diminishLevel = unit->GetDiminishing(m_diminishGroup);
         // Increase Diminishing on unit, current informations for actually casts will use values above
-        if ((GetDiminishingReturnsGroupType(m_diminishGroup) == DRTYPE_PLAYER && unit->GetTypeId() == TYPEID_PLAYER) ||
+        if ((GetDiminishingReturnsGroupType(m_diminishGroup) == DRTYPE_PLAYER && unit->GetCharmerOrOwnerPlayerOrPlayerItself()) ||
             GetDiminishingReturnsGroupType(m_diminishGroup) == DRTYPE_ALL)
             unit->IncrDiminishing(m_diminishGroup);
     }
@@ -1700,6 +1700,7 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
                 case 69140:                                 // Coldflame (Icecrown Citadel, Lord Marrowgar encounter)
                 case 69674:                                 // Mutated Infection
                 case 71224:
+                case 72091:                                 // Frozen Orb (Vault of Archavon, Toravon encounter, normal)
                 case 72378:                                 // Blood Nova
                 case 73022:                                 // Mutated Infection (heroic)
                 case 73023:                                 // Mutated Infection (heroic)
@@ -1737,6 +1738,7 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
                 case 72089:                                 // Bone Spike Graveyard (Icecrown Citadel, Lord Marrowgar encounter, 25H)
                 case 73143:                                 // Bone Spike Graveyard (during Bone Storm) (Icecrown Citadel, Lord Marrowgar encounter, 25N)
                 case 73145:                                 // Bone Spike Graveyard (during Bone Storm) (Icecrown Citadel, Lord Marrowgar encounter, 25H)
+                case 72095:                                 // Frozen Orb (Vault of Archavon, Toravon encounter, heroic)
                     unMaxTargets = 3;
                     break;
                 case 61916:                                 // Lightning Whirl (Stormcaller Brundir - Ulduar)
@@ -2375,8 +2377,7 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
                     FillAreaTargets(targetUnitMap, radius, PUSH_DEST_CENTER, SPELL_TARGETS_AOE_DAMAGE);
 
                     // Custom cases
-                    if (m_spellInfo->IsFitToFamily<SPELLFAMILY_PRIEST, CF_PRIEST_MIND_SEAR1>() || // Mind Sear, triggered
-                        m_spellInfo->IsFitToFamily<SPELLFAMILY_DRUID, CF_DRUID_STARFALL1>())    // Starfall, triggered
+                    if (m_spellInfo->IsFitToFamily<SPELLFAMILY_PRIEST, CF_PRIEST_MIND_SEAR1>()) // Mind Sear, triggered
                         if (Unit* unitTarget = m_targets.getUnitTarget())
                             targetUnitMap.remove(unitTarget);
 
@@ -2727,7 +2728,7 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
                         if ( pTarget->IsWithinDistInMap(Target, radius) )
                             targetUnitMap.push_back(Target);
 
-                        if (Pet* pet = Target->GetPet())
+                        if (Target->GetPet())
                         {
                             GroupPetList m_groupPets = Target->GetPets();
                             if (!m_groupPets.empty())
@@ -3437,6 +3438,8 @@ void Spell::cast(bool skipCheck)
                 AddTriggeredSpell(74800);                  // Soul consumption
             else if (m_spellInfo->Id == 61968)             // Flash Freeze (Hodir: Ulduar)
                 AddTriggeredSpell(62148);                  // visual effect
+            else if (m_spellInfo->Id == 58672)             // Impale, damage and loose threat effect (Vault of Archavon, Archavon the Stone Watcher)
+                AddPrecastSpell(m_caster->GetMap()->IsRegularDifficulty() ? 58666 : 60882);
             break;
         }
         case SPELLFAMILY_MAGE:
@@ -4722,6 +4725,20 @@ void Spell::TakePower()
         return;
     }
 
+    bool needApplyMod = false;
+    for (TargetList::const_iterator itr = m_UniqueTargetInfo.begin(); itr != m_UniqueTargetInfo.end(); ++itr)
+    {
+        if (itr->missCondition != SPELL_MISS_NONE)
+        {
+            needApplyMod = true;
+            break;
+        }
+    }
+
+    if (needApplyMod)
+        if (Player* modOwner = m_caster->GetSpellModOwner())
+            modOwner->ApplySpellMod(m_spellInfo->Id, SPELLMOD_COST_ON_HIT_FAIL, m_powerCost, this);
+
     m_caster->ModifyPower(powerType, -(int32)m_powerCost);
 
     // Set the five second timer
@@ -5116,8 +5133,10 @@ SpellCastResult Spell::CheckCast(bool strict)
             return m_caster->getClass() == CLASS_WARRIOR ? SPELL_FAILED_CASTER_AURASTATE : SPELL_FAILED_NO_COMBO_POINTS;
     }
 
-    if (Unit *target = m_targets.getUnitTarget())
+    Unit *target = m_targets.getUnitTarget();
+    if (target && target->IsInWorld() && target->GetMap())
     {
+        MAPLOCK_READ(target,MAP_LOCK_TYPE_AURAS);
         // target state requirements (not allowed state), apply to self also
         // This check not need - checked in CheckTarget()
         // if (m_spellInfo->TargetAuraStateNot && target->HasAuraState(AuraState(m_spellInfo->TargetAuraStateNot)))
@@ -5352,6 +5371,9 @@ SpellCastResult Spell::CheckCast(bool strict)
             return SPELL_FAILED_TARGET_AFFECTING_COMBAT;
     }
     // zone check
+    if (!m_caster->GetMap() || !m_caster->GetTerrain())
+        return SPELL_FAILED_DONT_REPORT;
+
     uint32 zone, area;
     m_caster->GetZoneAndAreaId(zone, area);
 
@@ -6262,7 +6284,7 @@ SpellCastResult Spell::CheckPetCast(Unit* target)
                 if(!target)
                 {
                     return SPELL_FAILED_BAD_IMPLICIT_TARGETS;
-                    DEBUG_LOG("Charmed creature attempt to cast spell %d, but no required target",m_spellInfo->Id);
+                    DEBUG_LOG("Charmed creature attempt to cast spell %u, but no required target",m_spellInfo->Id);
                 }
                 break;
             }
@@ -6278,13 +6300,13 @@ SpellCastResult Spell::CheckPetCast(Unit* target)
             {
                 if (m_caster->IsHostileTo(_target))
                 {
-                    DEBUG_LOG("Charmed creature attempt to cast positive spell %d, but target (guid %u) is hostile",m_spellInfo->Id, target->GetObjectGuid().GetRawValue());
+                    DEBUG_LOG("Charmed creature attempt to cast positive spell %u, but target (guid %s) is hostile",m_spellInfo->Id, target->GetObjectGuid().GetString().c_str());
                     return SPELL_FAILED_BAD_TARGETS;
                 }
             }
             else if (!_target->isTargetableForAttack() || (!_target->isVisibleForOrDetect(m_caster,m_caster,true) && !m_IsTriggeredSpell))
             {
-                DEBUG_LOG("Charmed creature attempt to cast spell %d, but target (guid %u) is not targetable or not detectable",m_spellInfo->Id,target->GetObjectGuid().GetRawValue());
+                DEBUG_LOG("Charmed creature attempt to cast spell %u, but target (guid %s) is not targetable or not detectable",m_spellInfo->Id,target->GetObjectGuid().GetString().c_str());
                 return SPELL_FAILED_BAD_TARGETS;            // guessed error
             }
             else
@@ -6304,20 +6326,20 @@ SpellCastResult Spell::CheckPetCast(Unit* target)
                 {
                     if (!m_caster->IsHostileTo(_target) && (m_caster->GetCharmerOrOwner() && m_caster->GetCharmerOrOwner()->IsFriendlyTo(_target)))
                     {
-                        DEBUG_LOG("Charmed creature attempt to cast negative spell %d, but target (guid %u) is friendly",m_spellInfo->Id, target->GetObjectGuid().GetRawValue());
+                        DEBUG_LOG("Charmed creature attempt to cast negative spell %u, but target (guid %s) is friendly",m_spellInfo->Id, target->GetObjectGuid().GetString().c_str());
                         return SPELL_FAILED_BAD_TARGETS;
                     }
                 }
                 else if (!m_caster->GetVehicleKit() && m_caster->IsFriendlyTo(_target) && !(!m_caster->GetCharmerOrOwner() || !m_caster->GetCharmerOrOwner()->IsFriendlyTo(_target))
                      && !dualEffect && !IsDispelSpell(m_spellInfo))
                 {
-                    DEBUG_LOG("Charmed creature attempt to cast spell %d, but target (guid %u) is not valid",m_spellInfo->Id,_target->GetObjectGuid().GetRawValue());
+                    DEBUG_LOG("Charmed creature attempt to cast spell %u, but target (guid %s) is not valid",m_spellInfo->Id,_target->GetObjectGuid().GetString().c_str());
                     return SPELL_FAILED_BAD_TARGETS;
                 }
 
                 if (m_caster->GetObjectGuid() == _target->GetObjectGuid() && dualEffect && !IsPositiveSpell(m_spellInfo->Id))
                 {
-                    DEBUG_LOG("Charmed creature %u attempt to cast negative spell %d on self",_target->GetObjectGuid().GetRawValue(),m_spellInfo->Id);
+                    DEBUG_LOG("Charmed creature %s attempt to cast negative spell %u on self",_target->GetObjectGuid().GetString().c_str(), m_spellInfo->Id);
 //                    return SPELL_FAILED_BAD_TARGETS;
                 }
             }
@@ -7717,7 +7739,7 @@ void Spell::FillRaidOrPartyTargets(UnitList &targetUnitMap, Unit* member, Unit* 
                     targetUnitMap.push_back(Target);
 
                 if (withPets)
-                    if (Pet* pet = Target->GetPet())
+                    if (Target->GetPet())
                     {
                         GroupPetList m_groupPets = Target->GetPets();
                         if (!m_groupPets.empty())
@@ -7913,7 +7935,7 @@ void Spell::DoSummonSnakes(SpellEffectIndex eff_idx)
         if (!pSummon->IsPositionValid())
         {
             sLog.outError("EffectSummonSnakes failed to summon snakes for Unit %s (GUID: %u) bacause of invalid position (x = %f, y = %f, z = %f map = %u)"
-                ,m_caster->GetName(), m_caster->GetObjectGuid().GetCounter(), position_x, position_y, position_z, m_caster->GetMap());
+                ,m_caster->GetName(), m_caster->GetObjectGuid().GetCounter(), position_x, position_y, position_z, m_caster->GetMapId());
             delete pSummon;
             continue;
         }
@@ -8065,7 +8087,7 @@ bool Spell::FillCustomTargetMap(SpellEffectIndex i, UnitList &targetUnitMap)
 
                     for (GuardianPetList::const_iterator itr = petList->begin(); itr != petList->end(); ++itr)
                         if (Unit* ghoul = m_caster->GetMap()->GetUnit(*itr))
-                            if (ghoul->GetEntry() == 24207)
+                            if (ghoul->GetEntry() == 24207 || ghoul->GetEntry() == 26125)
                                 targetUnitMap.push_back(ghoul);
 
                     if (targetUnitMap.size() > 1)
@@ -8309,6 +8331,13 @@ bool Spell::FillCustomTargetMap(SpellEffectIndex i, UnitList &targetUnitMap)
         {
             FillAreaTargets(targetUnitMap, radius, PUSH_DEST_CENTER, SPELL_TARGETS_FRIENDLY);
             targetUnitMap.remove(m_caster);
+            break;
+        }
+        case 62589: // Nature's Fury (10 man)
+        case 63571: // Nature's Fury (25 man)
+        {
+            FillAreaTargets(targetUnitMap, radius, PUSH_DEST_CENTER, SPELL_TARGETS_AOE_DAMAGE);
+            targetUnitMap.remove(m_caster); // exclude caster
             break;
         }
         case 65045: // Flame of demolisher
